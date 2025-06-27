@@ -20,11 +20,11 @@ pacman::p_load(
 
 rm(list = ls())
 
-source(here("code", "supplemental", "life_table.R"))
-source(here("code", "syphilis_model", "syphilis_model.R"))
-source(here("code", "hiv_model", "hiv_model_final.R"))
-source(here("code", "child_model", "infant_model.R"))
-source(here("code", "model_output", "hiv_syphilis_hbv_model_output.R"))
+source(here("model", "supplemental", "life_table.R"))
+source(here("model", "syphilis_model", "syphilis_model.R"))
+source(here("model", "hiv_model", "hiv_model_final.R"))
+source(here("model", "child_model", "infant_model.R"))
+source(here("model", "model_output", "hiv_syphilis_hbv_model_output.R"))
 
 
 
