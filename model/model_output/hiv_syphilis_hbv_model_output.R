@@ -156,7 +156,8 @@ hiv_syph_dual_func <- function(first_ANC_test=1, late_ANC_test,      # 1=test, 0
   
   # Get cost-effectiveness output 
   total_costs <- tot_mat_costs_func(maternal_costs) + total_infant_costs_func(child_outcomes) + 
-    sum(unlist(syph_cost_df), na.rm=TRUE)
+    sum(syph_cost_df$test_cost, syph_cost_df$treatment_cost_fp, syph_cost_df$treatment_cost_tp,
+        syph_cost_df$cong_syph_costs, na.rm=TRUE)
   
   total_hiv_infected_infants <- infant_outcomes$total_infected_infants
   

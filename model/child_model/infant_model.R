@@ -84,7 +84,8 @@ infant_hiv_syp_model <- function(maternal_hiv_df,
     
     infant_df$discounted_ylls[x] <- infant_df$dead[x]/(1+disc_rate)^(infant_df$age[x]+1)
     
-    infant_df$discounted_ylds[x] <- # hiv infected infants
+    infant_df$discounted_ylds[x] <- 
+      # hiv infected infants
       (infant_df$hiv_infected_infants[x] * (inf_ART_coverage*avg_ART_adherence*dw_HIVtx) +     
       infant_df$hiv_infected_infants[x] * (1-inf_ART_coverage*avg_ART_adherence) * 
       (dw_HIVnotx*propLE_HIV_notx+dw_AIDSnotx*(1-propLE_HIV_notx)) +

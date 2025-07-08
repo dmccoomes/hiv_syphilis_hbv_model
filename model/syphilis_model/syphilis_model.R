@@ -20,46 +20,11 @@ pacman::p_load(
 )
 
 
-#rm(list = ls())
-
-
-# # adding for now to set up model - will put into parameters spreadsheet later
-# syp_prev <- 0.0124
-# syp_inc_wk <- 0.044/52
-# syp_inc_wk <- 0.0000846118048346556
-# testcoverage_spy <- 0.73
-# testcoverage_dual <- 0.797530864197531
-# 
-# # test parameters
-# dual_spec_syp <- 0.995
-# dual_sens_syp <- 0.87
-# base_spec_syp <- 1
-# base_sens_syp <- 0.8
-# 
-# # Treatment parameters
-# p_syp_tx_dual <- 0.625
-# p_syp_tx_base <- 0.5
-# 
-# thirdtrimester_start <- 32
-# 
-# 
-# ##########
-# # Placeholders to run model
-# ##########
-# 
-# # using baseline 
-# rdt_sens_syp <- 0.8 
-# multi_sens_syp <- 0
-# rdt_spec_syp <- 0
-# multi_spec_syp <- 0
-
-
-
-
 
 ### Setting up syphilis data frame using function
 
 syph_maternal_func <- function(first_ANC_test, late_ANC_test, test_type_1, test_type_2) {
+  
   ### This function estimates populations of pregnant people 
   ### based on syphilis testing type and frequency during ANC 
     ### Input: syphilis population parameters, test frequency (1=test, 0=no test), test type

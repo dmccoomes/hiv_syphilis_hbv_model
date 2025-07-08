@@ -43,7 +43,7 @@ out <- cost_effective_func(testing_algorithm, syph_test = TRUE, baseline = "one_
                            "Kenya", "Pregnant population")
 
 
-
+write.csv(out, here("output", "dual_model_output.csv"))
 
 
 
