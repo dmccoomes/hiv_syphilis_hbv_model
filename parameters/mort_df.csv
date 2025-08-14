@@ -1,0 +1,20 @@
+,Indicator,age_group,mort_both,Male,mort_female,age_start
+1,nqx - probability of dying between ages x and x+n,<1 year,0.032814997,0.036013833,0.029514667,0
+2,nqx - probability of dying between ages x and x+n,1-4 years,0.011817706,0.012449423,0.011174343,1
+3,nqx - probability of dying between ages x and x+n,5-9 years,0.005324746,0.005611204,0.005034077,5
+4,nqx - probability of dying between ages x and x+n,10-14 years,0.004569058,0.005323212,0.003802055,10
+5,nqx - probability of dying between ages x and x+n,15-19  years,0.006581245,0.007947468,0.005199868,15
+6,nqx - probability of dying between ages x and x+n,20-24 years,0.008673684,0.010232191,0.007114134,20
+7,nqx - probability of dying between ages x and x+n,25-29 years,0.011237335,0.011722294,0.010757963,25
+8,nqx - probability of dying between ages x and x+n,30-34 years,0.016129918,0.016371206,0.01589307,30
+9,nqx - probability of dying between ages x and x+n,35-39 years,0.023913094,0.025427275,0.022429139,35
+10,nqx - probability of dying between ages x and x+n,40-44 years,0.034010747,0.037654252,0.03044082,40
+11,nqx - probability of dying between ages x and x+n,45-49 years,0.045803721,0.05238906,0.039375572,45
+12,nqx - probability of dying between ages x and x+n,50-54 years,0.0594531,0.070931007,0.048428677,50
+13,nqx - probability of dying between ages x and x+n,55-59 years,0.076051537,0.09452856,0.058929569,55
+14,nqx - probability of dying between ages x and x+n,60-64 years,0.104229781,0.131324157,0.080406164,60
+15,nqx - probability of dying between ages x and x+n,65-69 years,0.144190626,0.179451751,0.115219193,65
+16,nqx - probability of dying between ages x and x+n,70-74 years,0.212602463,0.255346043,0.179977701,70
+17,nqx - probability of dying between ages x and x+n,75-79 years,0.306535446,0.353963116,0.274076598,75
+18,nqx - probability of dying between ages x and x+n,80-84 years,0.439941112,0.490044844,0.409979688,80
+19,nqx - probability of dying between ages x and x+n,85+ years,1,1,1,85

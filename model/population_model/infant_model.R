@@ -1,5 +1,5 @@
 
-#### Title: HIV retesting infant model 
+#### Title: HIV-syphilis testing infant model 
 #### Purpose: Create HIV retesting infant model based on Excel models
 #### Author: David Coomes
 #### Date: January 21, 2025

@@ -14,7 +14,8 @@ pacman::p_load(
 )
 
 
-
+# Needs:
+  # add to function warning/stop saying that if test_type = "dual" then syph_test must equal TRUE
 
 
 

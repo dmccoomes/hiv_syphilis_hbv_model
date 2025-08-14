@@ -28,6 +28,7 @@ pop_param_func <- function(input_workbook, model, country, target_pop) {
   
   ### Function description
   
+  # Read in population characteristics
   pop_parameters <- readxl::read_xlsx(input_workbook, 
                                       sheet = "pop_characteristics") %>%
     mutate(across(value:value_ub,  ~as.double(.)))
@@ -36,13 +37,18 @@ pop_param_func <- function(input_workbook, model, country, target_pop) {
   test_parameters <- readxl::read_xlsx(input_workbook, 
                                        sheet = "test_characteristics")
   
+  # Read in adult model characteristics
+  adult_parameters <- readxl::read_xlsx(input_workbook, 
+                                        sheet = "adult_model_characteristics")
+  
   # only for the selected combinations
   selected_params <- pop_parameters %>%
+    bind_rows(adult_parameters) %>%
     filter(model == model, #will make a loop later
            country == country, #will make a loop later
            target_pop == target_pop) %>% #will make a loop later
-    bind_rows(test_parameters)
-  
+    bind_rows(test_parameters) 
+    
   # Set up all parameters for the selected population
   for (i in 1:nrow(selected_params)) {
     param_name <- as.character(selected_params$var_name[i])

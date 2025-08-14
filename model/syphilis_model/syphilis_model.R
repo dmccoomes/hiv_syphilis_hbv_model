@@ -299,7 +299,7 @@ syph_maternal_func <- function(first_ANC_test, late_ANC_test, test_type_1, test_
 # get early treatment number - turn this into a function with inputs in the main function
 # may need an ifelse to make this 0 if the first test is not run - I think those stillbirths will be captured in the other population groups
 early_tx_single_test_func <- function(first_ANC_test = 1, test_type, maternal_syph_df) {
-  out <- if (test_type == "dual") {
+  out <- if (test_type %in% c("dual", "rdt")) {
     first_ANC_test * maternal_syph_df[weekofanc1, which(names(maternal_syph_df) == "seropos_earlytx")] 
   } else if (test_type == "lab") {
     first_ANC_test * maternal_syph_df[(weekofanc1+1), which(names(maternal_syph_df) == "seropos_earlytx")] 
@@ -308,7 +308,7 @@ early_tx_single_test_func <- function(first_ANC_test = 1, test_type, maternal_sy
 }
 
 early_tx_repeat_test_func <- function(late_ANC_test = 1, test_type, maternal_syph_df) {
-  out <- if(test_type == "dual") {
+  out <- if(test_type %in% c("dual", "rdt")) {
     late_ANC_test * (maternal_syph_df[weekofanc2, which(names(maternal_syph_df) == "seropos_earlytx")] - 
                        maternal_syph_df[(weekofanc2-1), which(names(maternal_syph_df) == "seropos_earlytx")])
   } else if (test_type == "lab") {
@@ -445,18 +445,16 @@ syph_adverse_outcomes_func <- function(maternal_syph_df, test_type_1, test_type_
     bind_cols(as.data.frame(neonatal)) %>%
     bind_cols(as.data.frame(premature)) %>%
     bind_cols(as.data.frame(congenital)) %>%
-    bind_cols(as.data.frame(asympt)) %>% 
+    bind_cols(as.data.frame(asympt)) %>%
     bind_cols(as.data.frame(healthy)) %>%
     t() %>% as.data.frame() 
   
   colnames(adverse_df) <- colnames(maternal_syph_df)[3:15]
   
   return(adverse_df)
+  #out <- list("adverse" = adverse_df, "asympt" = asympt, "healthy" = healthy)
 
 }
-
-
-
 
 
 
