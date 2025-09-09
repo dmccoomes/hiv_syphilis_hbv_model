@@ -15,7 +15,8 @@ pacman::p_load(
   "tidyverse", 
   "here",
   "data.table",
-  "readxl"
+  "readxl",
+  "withr"
 )
 
 rm(list = ls())
@@ -46,7 +47,6 @@ out <- cost_effective_func(testing_algorithm, syph_test = TRUE, baseline = "one_
 
 
 write.csv(out, here("output", "dual_model_output.csv"))
-
 
 
 
@@ -89,14 +89,14 @@ mort_df <- read_csv(here("parameters", "kenya_mort_ihme.csv"))
 
 
 
-triplex_out <- triplex_out_func(late_ANC_test = 0,
-                             syph_test = TRUE,
-                             test_type_1 = "rdt",
-                             test_type_2 = "rdt")
-
-child_hiv_syph <- child_db$child_outcomes %>%
-  select(-c(discounted_ylls, discounted_ylds,
-            discounted_dalys))
+# triplex_out <- triplex_out_func(late_ANC_test = 0,
+#                              syph_test = TRUE,
+#                              test_type_1 = "rdt",
+#                              test_type_2 = "rdt")
+# 
+# child_hiv_syph <- child_db$child_outcomes %>%
+#   select(-c(discounted_ylls, discounted_ylds,
+#             discounted_dalys))
 # 
 # write.csv(child_hiv_syph, here("output", "dual_child_model_base.csv"))
 

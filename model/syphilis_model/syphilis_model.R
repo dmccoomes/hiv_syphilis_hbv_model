@@ -19,10 +19,28 @@ pacman::p_load(
   "data.table"
 )
 
+#########################
 
+# Testing
+# first_ANC_test <- 1
+# late_ANC_test <- 0
+# test_type_1 <- "lab"
+# test_type_2 <- "lab"
+# 
+# first_syphilis_test <- "lab"
+# late_syphilis_test <- "lab"
+# 
+# maternal_syph_df <- syph_maternal_func(first_ANC_test = first_ANC_test, 
+#                                        late_ANC_test = late_ANC_test,
+#                                        test_type_1 = first_syphilis_test, 
+#                                        test_type_2 = late_syphilis_test)
+
+
+#########################
 
 ### Setting up syphilis data frame using function
 
+# Main syphilis function
 syph_maternal_func <- function(first_ANC_test, late_ANC_test, test_type_1, test_type_2) {
   
   ### This function estimates populations of pregnant people 
@@ -72,6 +90,8 @@ syph_maternal_func <- function(first_ANC_test, late_ANC_test, test_type_1, test_
   p_syp_tx_dual <- p.syp.tx.dual
   p_syp_tx_base <- p.syp.tx.base
   thirdtrimester_start <- early.preg.wks
+  rpr_spec <- rpr.spec
+  rpr_sens <- rpr.sens
   
   # Entering missing data for RDT sensitivity and specificity - can add later if we get it
   rdt_sens_syp <- NA
@@ -100,9 +120,14 @@ syph_maternal_func <- function(first_ANC_test, late_ANC_test, test_type_1, test_
                                test_type_2 == "multi" ~ multi_spec_syp)
   
   ### Building model
+  
+  ## DMC 8.21.25 - splitting into those that have a previous syphilis test and those that don't
+  
+  # first, those that don't have a previous syphilis positive test will have the previous model
+  
   # Setting up first week parameters
   # based on population size, baseline syphilis prevalence, and female adult mortality
-  syph_df[1, ] <- c(1, 0, population_size*(1-syp_prev), rep(0,4), population_size*syp_prev, rep(0, 9), mort_adult_females, 0, sum(syph_df[1,3:13]))
+  syph_df[1, ] <- c(1, 0, population_size*(1-syp_prev)*(1-syp_trep_pos), rep(0,4), population_size*syp_prev*(1-syp_trep_pos), rep(0, 9), mort_adult_females, 0, sum(syph_df[1,3:13]))
   
   ## Run this to get full matrix of population counts by syphilis prevalence and testing status
   for (x in 2:deliveryweek) {
@@ -112,7 +137,7 @@ syph_maternal_func <- function(first_ANC_test, late_ANC_test, test_type_1, test_
     # testing to be early and/or late ANC depending on testing algorithm - this will 
     syph_test <- ifelse((x == weekofanc1 & first_ANC_test == 1) | (x == weekofanc2 & late_ANC_test == 1), 1, 0)
     # ANC attendance for first and second ANC
-    anc_attend <- case_when(x == weekofanc1~ att_firstANC,
+    anc_attend <- case_when(x == weekofanc1 ~ att_firstANC,
                             x == weekofanc2 ~ att_lategest,
                             TRUE ~ 0)
     
@@ -137,10 +162,10 @@ syph_maternal_func <- function(first_ANC_test, late_ANC_test, test_type_1, test_
                                  TRUE ~ p_syp_tx_base)
     
     # setting up test sensitivity to be dependent on timing of test and specific test
-    test_sens <- case_when(x == weekofanc1~ first_test_sens,
+    test_sens <- case_when(x == weekofanc1 ~ first_test_sens,
                            x == weekofanc2 ~ second_test_sens,
                            TRUE ~ 0)
-    test_spec <- case_when(x == weekofanc1~ first_test_spec, 
+    test_spec <- case_when(x == weekofanc1 ~ first_test_spec, 
                            x == weekofanc2 ~ second_test_spec,
                            TRUE ~ 0)
       
@@ -269,9 +294,193 @@ syph_maternal_func <- function(first_ANC_test, late_ANC_test, test_type_1, test_
     
   }
 
-  return(syph_df)
+  
+  #############
+  # Next, those that have had a previous syphilis positive test can only get RPR (no TPHA or dual test)
+  syph_pp_df <- as.data.frame(syph_matrix)
+  
+  # Setting up first week parameters
+  # based on population size, baseline syphilis prevalence, and female adult mortality
+  syph_pp_df[1, ] <- c(1, 0, population_size*(syp_prev)*(1-syp_trep_pos), rep(0,4), population_size*syp_prev*(syp_trep_pos), rep(0, 9), mort_adult_females, 0, sum(syph_df[1,3:13]))
+  
+  ## Run this to get full matrix of population counts by syphilis prevalence and testing status
+  for (x in 2:deliveryweek) {
+    ## Setting up variables that change depending on ANC attendance and testing
+    # mortality - background female mortality except for delivery week
+    maternal_mort <- ifelse(x == deliveryweek, mort_maternal_perinatal, mort_adult_females)
+    # testing to be early and/or late ANC depending on testing algorithm - this will 
+    syph_test <- ifelse((x == weekofanc1 & first_ANC_test == 1) | (x == weekofanc2 & late_ANC_test == 1), 1, 0)
+    # ANC attendance for first and second ANC
+    anc_attend <- case_when(x == weekofanc1 ~ att_firstANC,
+                            x == weekofanc2 ~ att_lategest,
+                            TRUE ~ 0)
+    
+    # test_type <- case_when(test_type_1 %in% c("dual", "multi") & x == weekofanc1 ~ "dual",
+    #                        test_type_1 %in% c("rdt", "lab") & x == weekofanc1 ~ "rdt",
+    #                        test_type_2 %in% c("dual", "multi") & x == weekofanc2 ~ "dual",
+    #                        test_type_2 %in% c("rdt", "lab") & x == weekofanc2 ~ "rdt",
+    #                        TRUE ~ NA)
+    
+    test_type <- "rdt"
+    
+    # Test coverage and type - MAY NEED TO ADD MULTIPLEX COVERAGE HERE (assuming same as dual for now)
+    # test_coverage <- case_when(test_type_1 %in% c("dual", "multi") & x == weekofanc1 ~ testcoverage_dual,
+    #                            test_type_1 %in% c("rdt", "lab") & x == weekofanc1 ~ testcoverage_syp,
+    #                            test_type_2 %in% c("dual", "multi") & x == weekofanc2 ~ testcoverage_dual,
+    #                            test_type_2 %in% c("rdt", "lab") & x == weekofanc2 ~ testcoverage_syp,
+    #                            TRUE ~ 0)
+    
+    test_coverage <- testcoverage_syp
+    
+    # Syphilis treatment probabilities - MAY NEED TO ADD MULTIPLEX COVERAGE HERE (assuming same as dual for now)
+    # prob_syph_treat <- case_when(test_type_1 %in% c("dual", "multi") & x == weekofanc1 ~ p_syp_tx_dual,
+    #                              test_type_1 %in% c("rdt", "lab") & x == weekofanc1 ~ p_syp_tx_base,
+    #                              test_type_2 %in% c("dual", "multi") & x == weekofanc2 ~ p_syp_tx_dual,
+    #                              test_type_2 %in% c("rdt", "lab") & x == weekofanc2 ~ p_syp_tx_base,
+    #                              TRUE ~ p_syp_tx_base)
+    
+    prop_syph_treat <- p_syp_tx_base
+    
+    # setting up test sensitivity to be dependent on timing of test and specific test
+    test_sens <- case_when(x == weekofanc1 ~ rpr_sens,
+                           x == weekofanc2 ~ rpr_sens,
+                           TRUE ~ 0)
+    test_spec <- case_when(x == weekofanc1 ~ rpr_spec, 
+                           x == weekofanc2 ~ rpr_spec,
+                           TRUE ~ 0)
+    
+    # Setting up testing 
+    week <- x
+    syph_pp_df$week[x] <- x 
+    syph_pp_df$syph_test[x] <- syph_test
+    syph_pp_df$anc_attend[x] <- anc_attend
+    syph_pp_df$maternal_mort[x] <- maternal_mort    # making sure this runs correctly - can delete later
+    syph_pp_df$test_sens[x] <- test_sens            # checking - may delete later
+    
+    
+    ## Getting populations for each syphilis and test category
+    
+    # Untested and seronegative
+    syph_pp_df$untest_seroneg[x] <- if (syph_pp_df$syph_test[x] == 0) {
+      (1-maternal_mort) * (1-syp_inc_wk) * syph_pp_df$untest_seroneg[x-1]
+    } else { (1-maternal_mort) * (1-syp_inc_wk) * syph_pp_df$untest_seroneg[x-1] * (1-syph_pp_df$anc_attend[x] * test_coverage)
+    }
+    
+    # Tested negative and seronegative
+    syph_pp_df$testneg_seroneg[x] <- if (syph_test == 0) {
+      (1-maternal_mort) * (1-syp_inc_wk) * syph_pp_df$testneg_seroneg[x-1]
+    } else if (syph_test == 1 & week == weekofanc1) {
+      (1-maternal_mort) * (1-syp_inc_wk) * syph_pp_df$testneg_seroneg[x-1] + 
+        (syph_pp_df$untest_seroneg[x-1]) * (1-maternal_mort) * (1-syp_inc_wk) * anc_attend * test_coverage * test_spec
+    } else if (syph_test == 1 & week == weekofanc2) {
+      (1-maternal_mort) * (1-syp_inc_wk) * (1-anc_attend * test_coverage) * syph_pp_df$testneg_seroneg[x-1] + 
+        ((syph_pp_df$untest_seroneg[x-1] + syph_pp_df$testneg_seroneg[x-1]) * (1-maternal_mort) * (1-syp_inc_wk) * 
+           anc_attend * test_coverage * test_spec)
+    } else { NA }
+    
+    # Tunnel test - keeping at 0 for now, not sure when this would not be 0
+    syph_pp_df$tunnelpos_seroneg[x] <- 0
+    
+    # seroneg, test positive, no tx
+    syph_pp_df$seroneg_testpos_notx[x] <- syph_pp_df$seroneg_testpos_notx[x-1] * (1-maternal_mort) * (1-syp_inc_wk) +
+      if (syph_test == 1 & test_type == "dual") {
+        (syph_pp_df$untest_seroneg[x-1] + syph_pp_df$testneg_seroneg[x-1]) * (1-maternal_mort) * (1-syp_inc_wk) * 
+          (syph_pp_df$anc_attend[x] *testcoverage_dual * (1-dual_spec_syp) * (1-p_syp_tx_dual))
+      } else {
+        syph_pp_df$tunnelpos_seroneg[x-1] * (1-maternal_mort) * (1-syp_inc_wk) * (1-p_syp_tx_base)
+      }
+    
+    syph_pp_df$seroneg_testpos_tx[x] <- syph_pp_df$seroneg_testpos_tx[x-1] * (1-maternal_mort) * (1-syp_inc_wk) +
+      if (syph_test == 1 & test_type == "dual") {
+        (syph_pp_df$untest_seroneg[x-1] + syph_pp_df$testneg_seroneg[x-1]) * (1-maternal_mort) * (1-syp_inc_wk) * 
+          (syph_pp_df$anc_attend[x] * testcoverage_dual * (1-dual_spec_syp) * (p_syp_tx_dual))
+      } else {
+        syph_pp_df$tunnelpos_seroneg[x-1] * (1-maternal_mort) * (1-syp_inc_wk) * (p_syp_tx_base)
+      }
+    
+    # untested and new seropos based on incidence rate
+    syph_pp_df$untest_new_seropos_noprior[x] <- (syph_pp_df$untest_seroneg[x-1] + syph_pp_df$testneg_seroneg[x-1]) * 
+      (1-maternal_mort) * syp_inc_wk +
+      ifelse(syph_pp_df$syph_test[x] == 1,
+             syph_pp_df$untest_new_seropos_noprior[x-1] * (1-maternal_mort) *
+               (1-anc_attend*test_coverage),
+             syph_pp_df$untest_new_seropos_noprior[x-1] * (1-maternal_mort))
+    
+    # untested and new seropos based on incidence rate and test sensitivity (?)
+    syph_pp_df$untest_new_seropos_prior[x] <- (syph_pp_df$seroneg_testpos_notx[x-1] + syph_pp_df$seroneg_testpos_tx[x-1]) * 
+      (1-maternal_mort) * (syp_inc_wk) +
+      syph_pp_df$untest_new_seropos_prior[x-1] * (1-maternal_mort)
+    
+    # seropositive but tested negative (those that falsely tested negative) - based on test specificity
+    syph_pp_df$seropos_testneg[x] <- ifelse(syph_pp_df$syph_test[x] == 1,
+                                         syph_pp_df$untest_new_seropos_noprior[x-1] * (1-maternal_mort) * anc_attend*(1-test_sens)*test_coverage +
+                                           syph_pp_df$seropos_testneg[x-1] * (1-maternal_mort) * (1-anc_attend*test_sens*test_coverage), 
+                                         syph_pp_df$seropos_testneg[x-1] * (1-maternal_mort))
+    
+    # tunnel test positive and seropositive
+    syph_pp_df$tunnelpos_seropos[x] <- ifelse(syph_pp_df$syph_test[x] == 1 & test_type == "rdt",
+                                           (syph_pp_df$untest_new_seropos_noprior[x-1] + syph_pp_df$seropos_testneg[x-1]) * (1-maternal_mort) *
+                                             anc_attend * test_coverage * test_sens,
+                                           0)
+    
+    # seropositive with no treatment
+    syph_pp_df$seropos_notx[x] <- syph_pp_df$seropos_notx[x-1] * (1 - maternal_mort) +   
+      if (syph_test == 1 & test_type == "dual") {
+        (syph_pp_df$untest_new_seropos_noprior[x-1] + syph_pp_df$seropos_testneg[x-1]) * (1-maternal_mort) * 
+          anc_attend * test_coverage * test_sens * (1-prob_syph_treat)
+      } else { 
+        syph_pp_df$tunnelpos_seropos[x-1] * (1-maternal_mort) * (1-prob_syph_treat) +
+          syph_pp_df$tunnelpos_seroneg[x-1] * (1-maternal_mort) * syp_inc_wk * (1-prob_syph_treat)
+      } 
+    
+    
+    # seropositive with treatment
+    syph_pp_df$seropos_tx[x] <- syph_pp_df$seropos_tx[x-1] * (1 - maternal_mort) +
+      if (syph_test == 1 & test_type == "dual") {
+        (syph_pp_df$untest_new_seropos_noprior[x-1] + syph_pp_df$seropos_testneg[x-1]) * (1-maternal_mort) * 
+          anc_attend * test_coverage * test_sens * (prob_syph_treat)
+      } else { 
+        syph_pp_df$tunnelpos_seropos[x-1] * (1-maternal_mort) * (1-prob_syph_treat) +
+          syph_pp_df$tunnelpos_seroneg[x-1] * (1-maternal_mort) * syp_inc_wk * (prob_syph_treat)
+      } 
+    
+    # seropositive with early treatment (before third trimester start)
+    syph_pp_df$seropos_earlytx[x] <- syph_pp_df$seropos_earlytx[x-1] * (1-maternal_mort) + 
+      if (week < thirdtrimester_start & syph_test == 1 & test_type == "dual") {
+        (syph_pp_df$untest_new_seropos_noprior[x-1] + syph_pp_df$seropos_testneg[x-1]) * (1-maternal_mort) * 
+          anc_attend * test_coverage * test_sens * (prob_syph_treat)
+      } else if (week < thirdtrimester_start) {
+        syph_pp_df$tunnelpos_seropos[x-1] * (1-maternal_mort) * (1-prob_syph_treat) +
+          syph_pp_df$tunnelpos_seroneg[x-1] * (1-maternal_mort) * syp_inc_wk * (prob_syph_treat)
+      } else { 0 }
+    
+    
+    # seropositive with late treatment (after third trimester start)
+    syph_pp_df$seropos_latetx[x] <- syph_pp_df$seropos_latetx[x-1] * (1-maternal_mort) + 
+      if (week >= thirdtrimester_start & syph_test == 1 & test_type == "dual") {
+        (syph_pp_df$untest_new_seropos_noprior[x-1] + syph_pp_df$seropos_testneg[x-1]) * (1-maternal_mort) * 
+          anc_attend * test_coverage * test_sens * (prob_syph_treat)
+      } else if (week >= thirdtrimester_start) {
+        syph_pp_df$tunnelpos_seropos[x-1] * (1-maternal_mort) * (1-prob_syph_treat) +
+          syph_pp_df$tunnelpos_seroneg[x-1] * (1-maternal_mort) * syp_inc_wk * (prob_syph_treat)
+      } else { 0 }
+    
+    
+    #Calculating number of deaths
+    syph_pp_df$deaths[x] <- sum(syph_pp_df[x-1, 3:13]) * maternal_mort + syph_pp_df$deaths[x-1] 
+    
+    # Checking to make sure population size is stable
+    syph_pp_df$pop_size[x] <- sum(syph_pp_df[x, c(3:13,16)])
+    
+  }
+  
+  # Combine RDT or lab with lab only
+  syph_df_out <- syph_df + syph_pp_df
+  
+  return(list("syph_npp_df" = syph_df, "syph_pp_df" = syph_pp_df, "syph_df" = syph_df_out))
   
 }
+
 
 
 
@@ -322,13 +531,13 @@ early_tx_repeat_test_func <- function(late_ANC_test = 1, test_type, maternal_syp
 
 
 
-syph_adverse_outcomes_func <- function(maternal_syph_df, test_type_1, test_type_2) {
+syph_adverse_outcomes_func <- function(maternal_syph_list, test_type_1, test_type_2) {
   
   #### Function description
   #### Inputs:
   #### Outputs:
   
-  
+  maternal_syph_df <- maternal_syph_list$syph_df
   
   # Setting delay in results based on lab or rapid test (1 week delay for lab tests)
   if (test_type_1 %in% c("dual", "rdt")) {
@@ -503,12 +712,12 @@ syph_infant_outcomes_1yr_func <- function(adverse_df) {
   # first and second ANC test - we don't need this because our costs depend on finished testing matrix
 
 
-syph_cost_func <- function(maternal_syph_df, adverse_df,
+syph_cost_func <- function(maternal_syph_list, adverse_df,
                            test_type_1, test_type_2) {
   
   # Inputs are the test type: "dual", "rdt", or "lab", and maternal syphilis dataframe
     # Currently "rdt" is the same as "dual"
-  
+
 
   # Setting up empty matrix - include all states
   syph_cost_matrix <- matrix(nrow = deliveryweek, ncol = 8, 
@@ -516,10 +725,16 @@ syph_cost_func <- function(maternal_syph_df, adverse_df,
                                         c("rpr_tests", "tpha_tests", "dual_tests", "treatments_fp", "treatments_tp", "test_cost",
                                           "treatment_cost_fp", "treatment_cost_tp")))
   
-  syph_cost_df <- as.data.frame(syph_cost_matrix)
+  
+  ### DMC updating 8.21.25 - breaking costs out for dual tests vs RPR tests (for those that previously tested positive for syphilis)
+  
+  ## Starting with population that did not previously test positive for syphilis
+  syph_cost_npp_df <- as.data.frame(syph_cost_matrix)
   
   # Starting states
-  syph_cost_df[1, ] <- rep(0, 8)
+  syph_cost_npp_df[1, ] <- rep(0, 8)
+  
+  maternal_syph_df <- maternal_syph_list$syph_npp_df
   
   # Setting up testing costs matrix
   for (x in 2:deliveryweek) {
@@ -559,7 +774,7 @@ syph_cost_func <- function(maternal_syph_df, adverse_df,
     
     
     # Number of RPR tests
-    syph_cost_df$rpr_tests[x] <- if (test_type %in% c("dual", "rdt")) {
+    syph_cost_npp_df$rpr_tests[x] <- if (test_type %in% c("dual", "rdt")) {
       0 
       } else if (test_type %in% c("lab")) {
         maternal_syph_df$syph_test[x] * (maternal_syph_df$untest_seroneg[x-1] + maternal_syph_df$testneg_seroneg[x-1]) *
@@ -571,19 +786,20 @@ syph_cost_func <- function(maternal_syph_df, adverse_df,
       }
     
     # Number of TPHA tests
-    syph_cost_df$tpha_tests[x] <- if (test_type %in% c("dual", "rdt")) {
-      0 
-    } else if (test_type %in% c("lab")) {
-      maternal_syph_df$syph_test[x] * (maternal_syph_df$testneg_seroneg[x-1] + maternal_syph_df$tunnelpos_seroneg[x-1]) *
-      (1-mort_adult_females) * (1-syp_inc_wk) * (att_anc * testcoverage * (1-rpr.spec)) +
-      (maternal_syph_df$untest_new_seropos_noprior[x-1] + maternal_syph_df$seropos_testneg[x-1]) * (1-mort_adult_females) *
-      att_anc * testcoverage * rpr.sens
-    } else {
-      print("No test type selected")
-    }
+      syph_cost_npp_df$tpha_tests[x] <- if (test_type %in% c("dual", "rdt")) {
+        0 
+      } else if (test_type %in% c("lab")) {
+        maternal_syph_df$syph_test[x] * (maternal_syph_df$testneg_seroneg[x-1] + maternal_syph_df$tunnelpos_seroneg[x-1]) *
+        (1-mort_adult_females) * (1-syp_inc_wk) * (att_anc * testcoverage * (1-rpr.spec)) +
+        (maternal_syph_df$untest_new_seropos_noprior[x-1] + maternal_syph_df$seropos_testneg[x-1]) * (1-mort_adult_females) *
+        att_anc * testcoverage * rpr.sens
+      } else {
+        print("No test type selected")
+      }
+    
     
     # Number of dual or RDT tests
-    syph_cost_df$dual_tests[x] <- if (test_type %in% c("dual", "rdt")) {
+    syph_cost_npp_df$dual_tests[x] <- if (test_type %in% c("dual", "rdt")) {
       maternal_syph_df$syph_test[x] * (maternal_syph_df$untest_seroneg[x-1] + maternal_syph_df$testneg_seroneg[x-1]) * 
       (1-mort_adult_females) * (1-syp_inc_wk) * att_anc * testcoverage +
       maternal_syph_df$syph_test[x] * (maternal_syph_df$untest_new_seropos_noprior[x-1] + maternal_syph_df$seropos_testneg[x-1]) * (1-mort_adult_females) *
@@ -595,7 +811,7 @@ syph_cost_func <- function(maternal_syph_df, adverse_df,
     }
     
     # Number of FP treatments
-    syph_cost_df$treatments_fp[x] <- if (test_type %in% c("dual", "rdt")) {
+    syph_cost_npp_df$treatments_fp[x] <- if (test_type %in% c("dual", "rdt")) {
       maternal_syph_df$syph_test[x] * (maternal_syph_df$untest_seroneg[x-1] + maternal_syph_df$testneg_seroneg[x-1]) * 
         (1-mort_adult_females) * (1-syp_inc_wk) * att_anc * testcoverage_dual * (1-dual.spec.syp) * p.syp.tx.dual
     } else if (test_type %in% c("lab")) {
@@ -605,7 +821,7 @@ syph_cost_func <- function(maternal_syph_df, adverse_df,
     }
     
     # Number of TP treatments
-    syph_cost_df$treatments_tp[x] <- if (test_type %in% c("dual", "rdt")) {
+    syph_cost_npp_df$treatments_tp[x] <- if (test_type %in% c("dual", "rdt")) {
       maternal_syph_df$syph_test[x] * (maternal_syph_df$untest_new_seropos_noprior[x-1] + maternal_syph_df$seropos_testneg[x-1]) *
         (1-mort_adult_females) * (att_anc) * testcoverage * sensitivity * prob_treatment 
     } else if (test_type %in% c("lab")) {
@@ -616,21 +832,110 @@ syph_cost_func <- function(maternal_syph_df, adverse_df,
     }
       
     # Test costs - we include the cost of dual testing here, but need to remove for CE model because it's also captured in HIV testing
-    syph_cost_df$test_cost[x] <- syph_cost_df$rpr_tests[x]*cost_rpr + syph_cost_df$tpha_tests[x]*cost_tpha
+    syph_cost_npp_df$test_cost[x] <- syph_cost_npp_df$rpr_tests[x]*cost_rpr + syph_cost_npp_df$tpha_tests[x]*cost_tpha
     
     # Treatment costs
-    syph_cost_df$treatment_cost_fp[x] <- syph_cost_df$treatments_fp[x] * cost_penicillin
+    syph_cost_npp_df$treatment_cost_fp[x] <- syph_cost_npp_df$treatments_fp[x] * cost_penicillin
     
-    syph_cost_df$treatment_cost_tp[x] <- syph_cost_df$treatments_tp[x] * cost_penicillin
+    syph_cost_npp_df$treatment_cost_tp[x] <- syph_cost_npp_df$treatments_tp[x] * cost_penicillin
     
     
   }
   
+  
+  
+  
+  ## Getting population that previously tested positive for syphilis
+  syph_cost_pp_df <- as.data.frame(syph_cost_matrix)
+  
+  # Starting states
+  syph_cost_pp_df[1, ] <- rep(0, 8)
+  
+  maternal_syph_df <- maternal_syph_list$syph_pp_df
+  
+  # Setting up testing costs matrix
+  for (x in 2:deliveryweek) {
+    
+    # Getting attendance at ANC for first and second ANC
+    att_anc <- case_when(x == weekofanc1 ~ att_firstANC,
+                         x == weekofanc2 ~ att_lategest,
+                         TRUE ~ as.numeric(0))
+    
+    # Getting test type
+    # test_type <- case_when(x <= weekofanc2 ~ test_type_1,
+    #                        x >= weekofanc2 ~ test_type_2)
+    
+    test_type <- "lab"
+    
+    # Update this if RDT test coverage is different than dual test coverage
+    # testcoverage_rdt <- testcoverage_dual
+    # testcoverage <- case_when(test_type == "dual" ~ testcoverage_dual,
+    #                           test_type == "rdt" ~ testcoverage_rdt,
+    #                           test_type == "lab" ~ testcoverage_syp)
+    
+    testcoverage <- testcoverage_syp
+    
+    # Update if RDT test sensitivity is different than dual test sensitivity
+    # rdt.sens.syp <- dual.sens.syp
+    # sensitivity <- case_when(test_type == "dual" ~ dual.sens.syp,
+    #                          test_type == "rdt" ~ rdt.sens.syp,
+    #                          test_type == "lab" ~ base.sens)
+    
+    rpr_sens <- rpr.sens
+    sensitivity <- rpr_sens
+    
+    # Update if probability of treatment is different for rdt compared to dual
+    # p.syp.tx.rdt <- p.syp.tx.dual
+    # prob_treatment <- case_when(test_type == "dual" ~ p.syp.tx.dual,
+    #                             test_type == "rdt" ~ p.syp.tx.rdt,
+    #                             test_type == "lab" ~ p.syp.tx.base)
+    
+    prob_treatment <- p.syp.tx.base
+    
+    # Update this when we get costs of syphilis RDT
+    # cost_rdt <- cost_dual
+    # cost_dual_rdt <- case_when(test_type == "dual" ~ cost_dual,
+    #                            test_type == "rdt" ~ cost_rdt,
+    #                            TRUE ~ as.numeric(0))
+    
+    # Number of RPR tests
+    syph_cost_pp_df$rpr_tests[x] <- maternal_syph_df$syph_test[x] * (maternal_syph_df$untest_seroneg[x-1] + maternal_syph_df$testneg_seroneg[x-1]) *
+        (1-mort_adult_females) * (1-syp_inc_wk) * att_anc * testcoverage + 
+        (maternal_syph_df$untest_new_seropos_noprior[x-1] + maternal_syph_df$seropos_testneg[x-1]) * (1-mort_adult_females) *
+        att_anc * testcoverage
+
+    # Number of TPHA tests
+    syph_cost_pp_df$tpha_tests[x] <- 0
+    
+    
+    # Number of dual or RDT tests
+    syph_cost_pp_df$dual_tests[x] <- 0
+    
+    # Number of FP treatments
+    syph_cost_pp_df$treatments_fp[x] <- maternal_syph_df$syph_test[x] * maternal_syph_df$tunnelpos_seroneg[x-1] * (1-mort_adult_females) * (1-syp_inc_wk) * p.syp.tx.base
+
+    # Number of TP treatments
+    syph_cost_pp_df$treatments_tp[x] <- maternal_syph_df$syph_test[x-1] * maternal_syph_df$tunnelpos_seropos[x-1] * (1-mort_adult_females) * prob_treatment +
+        maternal_syph_df$tunnelpos_seroneg[x-1] * (1-mort_adult_females) * syp_inc_wk * prob_treatment
+
+    # Test costs - we include the cost of dual testing here, but need to remove for CE model because it's also captured in HIV testing
+    syph_cost_pp_df$test_cost[x] <- syph_cost_pp_df$rpr_tests[x]*cost_rpr + syph_cost_pp_df$tpha_tests[x]*cost_tpha
+    
+    # Treatment costs
+    syph_cost_pp_df$treatment_cost_fp[x] <- syph_cost_pp_df$treatments_fp[x] * cost_penicillin
+    
+    syph_cost_pp_df$treatment_cost_tp[x] <- syph_cost_pp_df$treatments_tp[x] * cost_penicillin
+    
+    
+  }
+  
+  # Combining previous positive and non-previous positive costs together
+  syph_cost_df <- syph_cost_npp_df + syph_cost_pp_df
+
   syph_total_costs <- colSums(syph_cost_df)
   syph_total_costs$cong_syph_costs <- sum(adverse_df[4, ]) * cost_cong_tx
-  # DMC - Why does the excel model not include some costs associated with congenital syphilis? 
-
-return(syph_total_costs)
+  
+  return(syph_total_costs)
 
 }
 
@@ -651,8 +956,6 @@ return(syph_total_costs)
 
 
 
-# Needs - 
-  # update test coverage to be flexible. Can add dual or individual tests
 
 
 

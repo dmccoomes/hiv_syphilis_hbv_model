@@ -59,10 +59,9 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
   
   maternal_df <- as.data.frame(maternal_matrix)
   
-  # Setting up first week parameters
-  maternal_df[1, ] <- c(1, population_size*neg, population_size*recent, 0, population_size*established_uk_nart, 
-                   population_size*established_k_nart, population_size*established_art, 0, 0)
-  
+  maternal_df[1, ] <- c(1, population_size*neg, population_size*recent, 0, population_size*established_uk_nart,
+                        population_size*established_k_nart, 0, 0, 0)
+
   maternal_df$stage <- as.character(maternal_df$stage) 
   maternal_df$stage[1] <- "Stage 0: Onset of pregnancy to first ANC"
   
@@ -121,6 +120,10 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     test_sens_c <- case_when(test_type_1 == "rdt" ~ rdt_sens_hiv_c,
                              test_type_1 == "dual" ~ dual.sens.hiv.c)
     
+    # Accounting for those that only get an HIV RDT instead of dual test because they are treponemal positive
+    test_sens_combo_e <- (test_sens_e + test_sens_e*syp_trep_pos - rdt_sens_hiv_e*syp_trep_pos)
+    test_sens_combo_c <- (test_sens_c + test_sens_c*syp_trep_pos - rdt_sens_hiv_c*syp_trep_pos)
+    
     # Calculating populations
     maternal_df$weeks[x] <- x
     
@@ -130,9 +133,14 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
                                 )
     
     maternal_df$ahiv_pos_nart[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc1-1),
+                                      # HIV negative who become infected
                                       maternal_df$hiv_neg[x-1] * (1-mort_adult_females) * inc_preg_early * (1-(PrEP*red_prep)) +
+                                        # aHIV+ who remain positive but do not receive ART
                                         maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) * 
-                                          (1-first_ANC_test*att_firstANC*(1-stockout)*test_accept*test_sens_e*p_results*p_ART) +
+                                          (1-first_ANC_test*att_firstANC*(1-stockout)*test_accept* 
+                                             test_sens_combo_e *   # test_sens_e: DMC adding in HIV RDT  
+                                           p_results*p_ART) +
+                                        # aHIV+ who drop ART
                                         maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * (1-ART_drop_factor),
                                       maternal_df$hiv_neg[x-1] * (1-mort_adult_females) * inc_preg_late * (1-(PrEP*red_prep)) +
                                         maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) +
@@ -141,24 +149,24 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
       
     maternal_df$ahiv_pos_art[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc1-1),
                                      maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) * 
-                                      first_ANC_test * att_firstANC * test_accept * (1-stockout) * test_sens_e * p_results * p_ART,
+                                      first_ANC_test * att_firstANC * test_accept * (1-stockout) * test_sens_combo_e * p_results * p_ART,
                                      maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * ART_drop_factor
                                      )
       
     maternal_df$chiv_pos_uk[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc1-1),
                                          maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * 
-                                           (1-(first_ANC_test * att_firstANC * (1-stockout) * test_accept * test_sens_c * p_results)) + 
+                                           (1-(first_ANC_test * att_firstANC * (1-stockout) * test_accept * test_sens_combo_c * p_results)) + 
                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * 
-                                           (1-(first_ANC_test * att_firstANC * (1-stockout) * test_accept * test_sens_c * p_results)),
+                                           (1-(first_ANC_test * att_firstANC * (1-stockout) * test_accept * test_sens_combo_c * p_results)),
                                          maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) +
                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females)
                                          )
   
     maternal_df$chiv_pos_nart[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc1-1),
                                            maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * first_ANC_test * 
-                                             att_firstANC * test_accept * (1-stockout) * p_results * test_sens_c * (1-p_ART) +
+                                             att_firstANC * test_accept * (1-stockout) * p_results * test_sens_combo_c * (1-p_ART) +
                                              maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * first_ANC_test * att_firstANC * test_accept *
-                                             (1-stockout) * p_results * test_sens_c * (1-p_ART) +
+                                             (1-stockout) * p_results * test_sens_combo_c * (1-p_ART) +
                                              maternal_df$chiv_pos_nart[x-1] * (1-mort_adult_females) +
                                              maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * (1-ART_drop_factor),
                                            maternal_df$chiv_pos_nart[x-1] * (1-mort_adult_females) +
@@ -167,9 +175,9 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     
     maternal_df$chiv_pos_art[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc1-1),
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * first_ANC_test *
-                                            att_firstANC * test_sens_c * test_accept * (1-stockout) * p_results * p_ART +
+                                            att_firstANC * test_sens_combo_c * test_accept * (1-stockout) * p_results * p_ART +
                                             maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1/duration_infection) +
-                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * first_ANC_test * att_firstANC * test_sens_c *
+                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * first_ANC_test * att_firstANC * test_sens_combo_c *
                                             test_accept * (1-stockout) * p_results * p_ART +
                                             maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * ART_drop_factor,
                                           maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1/duration_infection) +
@@ -199,6 +207,10 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
                              test_type_2 == "dual" ~ dual.sens.hiv.e) 
     test_sens_c <- case_when(test_type_2 == "rdt" ~ rdt_sens_hiv_c,
                              test_type_2 == "dual" ~ dual.sens.hiv.c)
+
+    # Accounting for those that only get an HIV RDT instead of dual test because they are treponemal positive
+    test_sens_combo_e <- (test_sens_e + test_sens_e*syp_trep_pos - rdt_sens_hiv_e*syp_trep_pos)
+    test_sens_combo_c <- (test_sens_c + test_sens_c*syp_trep_pos - rdt_sens_hiv_c*syp_trep_pos)
     
     # Calculating population
     maternal_df$weeks[x] <- x
@@ -208,7 +220,7 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     maternal_df$ahiv_pos_nart[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc2 - 1),
                                            maternal_df$hiv_neg[x-1] * (1-mort_adult_females) * inc_preg_late * (1-(PrEP*red_prep)) +
                                              maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) * 
-                                             (1-late_ANC_test*att_lategest*(1-stockout)*test_accept*test_sens_e*p_results*p_ART) +
+                                             (1-late_ANC_test*att_lategest*(1-stockout)*test_accept*test_sens_combo_e*p_results*p_ART) +
                                              maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * (1-ART_drop_factor),
                                            maternal_df$hiv_neg[x-1] * (1-mort_adult_females) * inc_preg_late * (1-(PrEP*red_prep)) +
                                              maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) +
@@ -217,25 +229,25 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     
       maternal_df$ahiv_pos_art[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc2 - 1),
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) * late_ANC_test *
-                                            att_lategest * test_accept * (1-stockout) * test_sens_e * p_results * p_ART +
+                                            att_lategest * test_accept * (1-stockout) * test_sens_combo_e * p_results * p_ART +
                                             maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * ART_drop_factor,
                                           maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * ART_drop_factor
                                           )
   
     maternal_df$chiv_pos_uk[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc2 - 1),
                                          maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * 
-                                           (1-(late_ANC_test * att_lategest * (1-stockout) * test_accept * test_sens_c * p_results)) +
+                                           (1-(late_ANC_test * att_lategest * (1-stockout) * test_accept * test_sens_combo_c * p_results)) +
                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * 
-                                           (1-(late_ANC_test * att_lategest * (1-stockout) * test_accept * test_sens_c * p_results)),
+                                           (1-(late_ANC_test * att_lategest * (1-stockout) * test_accept * test_sens_combo_c * p_results)),
                                          maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) +
                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females)
                                          )
     
     maternal_df$chiv_pos_nart[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc2 - 1),
                                            maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * late_ANC_test *
-                                             att_lategest * test_accept * (1-stockout) * p_results * test_sens_c * (1-p_ART) +
+                                             att_lategest * test_accept * (1-stockout) * p_results * test_sens_combo_c * (1-p_ART) +
                                              maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * late_ANC_test * att_lategest *
-                                             test_accept * (1-stockout) * p_results * test_sens_c * (1-p_ART) +
+                                             test_accept * (1-stockout) * p_results * test_sens_combo_c * (1-p_ART) +
                                              maternal_df$chiv_pos_nart[x-1] * (1-mort_adult_females) + 
                                              maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * (1-ART_drop_factor),
                                            maternal_df$chiv_pos_nart[x-1] * (1-mort_adult_females) +
@@ -244,9 +256,9 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     
     maternal_df$chiv_pos_art[x] <- ifelse(maternal_df$weeks[x-1] == (weekofanc2 - 1),
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * late_ANC_test *
-                                            att_lategest * test_sens_c * test_accept * (1-stockout) * p_results * p_ART +
+                                            att_lategest * test_sens_combo_c * test_accept * (1-stockout) * p_results * p_ART +
                                             maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1/duration_infection) +
-                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * late_ANC_test * att_lategest * test_sens_c *
+                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * late_ANC_test * att_lategest * test_sens_combo_c *
                                             test_accept * (1-stockout) * p_results * p_ART +
                                             maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * ART_drop_factor,
                                           maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1/duration_infection) +
@@ -277,6 +289,11 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     test_sens_c <- case_when(test_type_2 == "rdt" ~ rdt_sens_hiv_c,
                              test_type_2 == "dual" ~ dual.sens.hiv.c)
     
+    # Accounting for those that only get an HIV RDT instead of dual test because they are treponemal positive
+    test_sens_combo_e <- (test_sens_e + test_sens_e*syp_trep_pos - rdt_sens_hiv_e*syp_trep_pos)
+    test_sens_combo_c <- (test_sens_c + test_sens_c*syp_trep_pos - rdt_sens_hiv_c*syp_trep_pos)
+    
+    
     # Calculating populations
     maternal_df$weeks[x] <- x
     
@@ -288,7 +305,7 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     
     maternal_df$ahiv_pos_nart[x] <- maternal_df$hiv_neg[x-1] * (1-mort_maternal_perinatal) * inc_preg_late * (1-(PrEP*red_prep)) +
                                              maternal_df$ahiv_pos_nart[x-1] * (1-mort_maternal_perinatal) * (1-1/duration_infection) * 
-                                             (1-late_ANC_test*att_delivery*(1-stockout)*test_accept*(1-second_ANC_test_prob)*test_sens_e*p_results*p_ART) +
+                                             (1-late_ANC_test*att_delivery*(1-stockout)*test_accept*(1-second_ANC_test_prob)*test_sens_combo_e*p_results*p_ART) +
                                              maternal_df$ahiv_pos_art[x-1] * (1-mort_maternal_perinatal) * (1-(1/duration_infection)) * (1-ART_drop_factor) -
                                              # Adding in syphilis mortality only if syphilis testing is included
                                              ifelse(syph_test == 1, 
@@ -296,7 +313,7 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
                                                     0)
   
     maternal_df$ahiv_pos_art[x] <- maternal_df$ahiv_pos_nart[x-1] * (1-mort_maternal_perinatal) * (1-1/duration_infection) * late_ANC_test *
-                                            att_delivery * test_accept * (1-stockout) * (1-second_ANC_test_prob) * test_sens_e * p_results * p_ART +
+                                            att_delivery * test_accept * (1-stockout) * (1-second_ANC_test_prob) * test_sens_combo_e * p_results * p_ART +
                                             maternal_df$ahiv_pos_art[x-1] * (1-mort_maternal_perinatal) * (1-(1/duration_infection)) * ART_drop_factor -
                                              # Adding in syphilis mortality only if syphilis testing is included
                                              ifelse(syph_test == 1, 
@@ -305,10 +322,10 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
   
     maternal_df$chiv_pos_uk[x] <- maternal_df$ahiv_pos_nart[x-1] * (1-mort_maternal_perinatal) * (1/duration_infection) * 
                                            (1-(late_ANC_test * att_delivery * (1-stockout) * test_accept * (1-second_ANC_test_prob) * 
-                                           test_sens_c * p_results)) +
+                                           test_sens_combo_c * p_results)) +
                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_maternal_perinatal) * 
                                            (1-(late_ANC_test * att_delivery * (1-stockout) * test_accept * (1-second_ANC_test_prob) *
-                                           test_sens_c * p_results)) -
+                                           test_sens_combo_c * p_results)) -
                                            # Adding in syphilis mortality only if syphilis testing is included
                                            ifelse(syph_test == 1, 
                                                   syph_infant_deaths*maternal_df$chiv_pos_uk[x-1] / sum(maternal_df[x-1, 2:7], na.rm=TRUE),
@@ -317,9 +334,9 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
   
     maternal_df$chiv_pos_nart[x] <- maternal_df$ahiv_pos_nart[x-1] * (1-mort_maternal_perinatal) * (1/duration_infection) * late_ANC_test *
                                              att_delivery * test_accept * (1-stockout) * p_results * (1-second_ANC_test_prob) * 
-                                             test_sens_c * (1-p_ART) +
+                                             test_sens_combo_c * (1-p_ART) +
                                              maternal_df$chiv_pos_uk[x-1] * (1-mort_maternal_perinatal) * late_ANC_test * att_delivery *
-                                             test_accept * (1-stockout) * p_results * (1-second_ANC_test_prob) * test_sens_c * (1-p_ART) +
+                                             test_accept * (1-stockout) * p_results * (1-second_ANC_test_prob) * test_sens_combo_c * (1-p_ART) +
                                              maternal_df$chiv_pos_nart[x-1] * (1-mort_maternal_perinatal) + 
                                              maternal_df$chiv_pos_art[x-1] * (1-mort_maternal_perinatal) * (1-ART_drop_factor) -
                                              # Adding in syphilis mortality only if syphilis testing is included
@@ -329,9 +346,9 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
       
   
     maternal_df$chiv_pos_art[x] <- maternal_df$ahiv_pos_nart[x-1] * (1-mort_maternal_perinatal) * (1/duration_infection) * late_ANC_test *
-                                            att_delivery * test_sens_c * test_accept * (1-stockout) * p_results * p_ART * (1-second_ANC_test_prob) +
+                                            att_delivery * test_sens_combo_c * test_accept * (1-stockout) * p_results * p_ART * (1-second_ANC_test_prob) +
                                             maternal_df$ahiv_pos_art[x-1] * (1-mort_maternal_perinatal) * (1/duration_infection) +
-                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * late_ANC_test * att_delivery * test_sens_c *
+                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * late_ANC_test * att_delivery * test_sens_combo_c *
                                             test_accept * (1-stockout) * p_results * p_ART * (1-second_ANC_test_prob) +
                                             maternal_df$chiv_pos_art[x-1] * (1-mort_maternal_perinatal) * ART_drop_factor -
                                             # Adding in syphilis mortality only if syphilis testing is included
@@ -401,6 +418,10 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     test_sens_c <- case_when(pp_test_type == "rdt" ~ rdt_sens_hiv_c,
                              pp_test_type == "dual" ~ dual.sens.hiv.c)
     
+    # Accounting for those that only get an HIV RDT instead of dual test because they are treponemal positive
+    test_sens_combo_e <- (test_sens_e + test_sens_e*syp_trep_pos - rdt_sens_hiv_e*syp_trep_pos)
+    test_sens_combo_c <- (test_sens_c + test_sens_c*syp_trep_pos - rdt_sens_hiv_c*syp_trep_pos)
+    
     # Calculating populations
     maternal_df$weeks[x] <- x
     
@@ -411,40 +432,40 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
                                       ifelse(maternal_df$weeks[x-1] == (deliveryweek+early_pp_visit)-1, inc_pp_early, inc_pp_mid) * (1-(PrEP*red_prep)) +
                                     maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) *
                                       ifelse(maternal_df$weeks[x-1] == (deliveryweek+early_pp_visit)-1, (1 - pp_early_test * att_6wk * (1-stockout) * test_accept * (1- (second_ANC_test_prob + delivery_test_prob)) *
-                                      test_sens_e * p_results * p_ART), 1) +
+                                      test_sens_combo_e * p_results * p_ART), 1) +
                                     maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * (1-ART_drop_factor)
     
     maternal_df$ahiv_pos_art[x] <- maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * ART_drop_factor +
                                    ifelse(maternal_df$weeks[x-1] == (deliveryweek+early_pp_visit)-1, 
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * pp_early_test * 
-                                          att_6wk * test_accept * (1-stockout) * (1-(second_ANC_test_prob + delivery_test_prob)) * test_sens_e *
+                                          att_6wk * test_accept * (1-stockout) * (1-(second_ANC_test_prob + delivery_test_prob)) * test_sens_combo_e *
                                           p_results * p_ART, 0)
                                    
     maternal_df$chiv_pos_uk[x] <- maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * 
                                     ifelse(maternal_df$weeks[x-1] == (deliveryweek+early_pp_visit)-1, 
                                            (1-pp_early_test * att_6wk * (1-stockout) * test_accept * (1-(second_ANC_test_prob + delivery_test_prob)) *
-                                           test_sens_c * p_results), 1) +
+                                           test_sens_combo_c * p_results), 1) +
                                   maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * 
                                     ifelse(maternal_df$weeks[x-1] == (deliveryweek+early_pp_visit)-1, 
                                            (1-pp_early_test * att_6wk * (1-stockout) * test_accept * (1-(second_ANC_test_prob + delivery_test_prob)) * 
-                                              test_sens_c * p_results), 1)
+                                              test_sens_combo_c * p_results), 1)
    
     maternal_df$chiv_pos_nart[x] <- ifelse(maternal_df$weeks[x-1] == (deliveryweek+early_pp_visit)-1, 
                                            maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * pp_early_test *
                                              att_6wk * test_accept * (1-stockout) * (1-(second_ANC_test_prob + delivery_test_prob)) *
-                                             p_results * test_sens_c * (1-p_ART), 0) +
+                                             p_results * test_sens_combo_c * (1-p_ART), 0) +
                                     ifelse(maternal_df$weeks[x-1] == (deliveryweek+early_pp_visit)-1, 
                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_early_test * att_6wk * test_accept * (1-stockout) *
-                                             (1-(second_ANC_test_prob + delivery_test_prob)) * p_results * test_sens_c * (1-p_ART), 0) +      
+                                             (1-(second_ANC_test_prob + delivery_test_prob)) * p_results * test_sens_combo_c * (1-p_ART), 0) +      
                                     maternal_df$chiv_pos_nart[x-1] * (1-mort_adult_females) +
                                     maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * (1-ART_drop_factor)
    
     maternal_df$chiv_pos_art[x] <- ifelse(maternal_df$weeks[x-1] == (deliveryweek+early_pp_visit)-1, 
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * pp_early_test *
-                                            att_6wk * test_sens_c * test_accept * (1-stockout) * (1-(second_ANC_test_prob + delivery_test_prob)) *
+                                            att_6wk * test_sens_combo_c * test_accept * (1-stockout) * (1-(second_ANC_test_prob + delivery_test_prob)) *
                                             p_results * p_ART, 0) +
                                    ifelse(maternal_df$weeks[x-1] == (deliveryweek+early_pp_visit)-1, 
-                                          maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_early_test * att_6wk * test_sens_c *
+                                          maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_early_test * att_6wk * test_sens_combo_c *
                                             test_accept * (1-stockout) * (1-(second_ANC_test_prob + delivery_test_prob)) * p_results * p_ART, 0) +
                                    maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1/duration_infection) +
                                    maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * ART_drop_factor
@@ -473,6 +494,10 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     test_sens_c <- case_when(pp_test_type == "rdt" ~ rdt_sens_hiv_c,
                              pp_test_type == "dual" ~ dual.sens.hiv.c)
     
+    # Accounting for those that only get an HIV RDT instead of dual test because they are treponemal positive
+    test_sens_combo_e <- (test_sens_e + test_sens_e*syp_trep_pos - rdt_sens_hiv_e*syp_trep_pos)
+    test_sens_combo_c <- (test_sens_c + test_sens_c*syp_trep_pos - rdt_sens_hiv_c*syp_trep_pos)
+    
     # Calculating populations
     maternal_df$weeks[x] <- x
     
@@ -482,37 +507,37 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
                                     maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) *
                                       ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_14weeks_visit)-1, 
                                              (1 - (pp_14weeks_test * att_14wk * (1-stockout) * test_accept * 
-                                             test_sens_e * p_results * p_ART)), 1) +
+                                             test_sens_combo_e * p_results * p_ART)), 1) +
                                     maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * (1-ART_drop_factor)
   
     maternal_df$ahiv_pos_art[x] <- maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * ART_drop_factor +
                                    ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_14weeks_visit)-1, 
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * pp_14weeks_test * 
-                                          att_14wk * test_accept * (1-stockout) * test_sens_e * p_results * p_ART, 0)
+                                          att_14wk * test_accept * (1-stockout) * test_sens_combo_e * p_results * p_ART, 0)
   
     maternal_df$chiv_pos_uk[x] <- maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * 
                                   ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_14weeks_visit)-1, 
-                                         (1 - pp_14weeks_test * att_14wk * (1-stockout) * test_accept * test_sens_c * p_results), 1) +
+                                         (1 - pp_14weeks_test * att_14wk * (1-stockout) * test_accept * test_sens_combo_c * p_results), 1) +
                                   maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * 
                                   ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_14weeks_visit)-1, 
-                                         (1 - pp_14weeks_test * att_14wk * (1-stockout) * test_accept * test_sens_c * p_results), 1)
+                                         (1 - pp_14weeks_test * att_14wk * (1-stockout) * test_accept * test_sens_combo_c * p_results), 1)
     
     
     
     maternal_df$chiv_pos_nart[x] <- ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_14weeks_visit)-1, 
                                            maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * pp_14weeks_test *
-                                             att_14wk * test_accept * (1-stockout) * p_results * test_sens_c * (1-p_ART), 0) +
+                                             att_14wk * test_accept * (1-stockout) * p_results * test_sens_combo_c * (1-p_ART), 0) +
                                     ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_14weeks_visit)-1, 
                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_14weeks_test * att_14wk * test_accept * 
-                                             (1-stockout) * p_results * test_sens_c * (1-p_ART), 0) +      
+                                             (1-stockout) * p_results * test_sens_combo_c * (1-p_ART), 0) +      
                                     maternal_df$chiv_pos_nart[x-1] * (1-mort_adult_females) +
                                     maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * (1-ART_drop_factor)
     
     maternal_df$chiv_pos_art[x] <- ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_14weeks_visit)-1, 
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * pp_14weeks_test *
-                                            att_14wk * test_sens_c * test_accept * (1-stockout) * p_results * p_ART, 0) +
+                                            att_14wk * test_sens_combo_c * test_accept * (1-stockout) * p_results * p_ART, 0) +
                                     ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_14weeks_visit)-1, 
-                                           maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_14weeks_test * att_14wk * test_sens_c *
+                                           maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_14weeks_test * att_14wk * test_sens_combo_c *
                                              test_accept * (1-stockout) * p_results * p_ART, 0) +
                                     maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1/duration_infection) +
                                     maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * ART_drop_factor
@@ -540,6 +565,10 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
                              pp_test_type == "dual" ~ dual.sens.hiv.e) 
     test_sens_c <- case_when(pp_test_type == "rdt" ~ rdt_sens_hiv_c,
                              pp_test_type == "dual" ~ dual.sens.hiv.c)
+
+    # Accounting for those that only get an HIV RDT instead of dual test because they are treponemal positive
+    test_sens_combo_e <- (test_sens_e + test_sens_e*syp_trep_pos - rdt_sens_hiv_e*syp_trep_pos)
+    test_sens_combo_c <- (test_sens_c + test_sens_c*syp_trep_pos - rdt_sens_hiv_c*syp_trep_pos)
     
     # Calculating populations
     maternal_df$weeks[x] <- x
@@ -555,37 +584,37 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
                                     maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) *
                                     ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_mid_visit)-1, 
                                            (1 - (pp_mid_test * att_6mo * (1-stockout) * test_accept * 
-                                                   test_sens_e * p_results * p_ART)), 1) +
+                                                   test_sens_combo_e * p_results * p_ART)), 1) +
                                     maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * (1-ART_drop_factor)
     
     maternal_df$ahiv_pos_art[x] <- maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * ART_drop_factor +
                                    ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_mid_visit)-1, 
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * pp_mid_test * 
-                                            att_6mo * test_accept * (1-stockout) * test_sens_e * p_results * p_ART, 0)
+                                            att_6mo * test_accept * (1-stockout) * test_sens_combo_e * p_results * p_ART, 0)
     
     maternal_df$chiv_pos_uk[x] <- maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * 
                                   ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_mid_visit)-1, 
-                                         (1 - pp_mid_test * att_6mo * (1-stockout) * test_accept * test_sens_c * p_results), 1) +
+                                         (1 - pp_mid_test * att_6mo * (1-stockout) * test_accept * test_sens_combo_c * p_results), 1) +
                                   maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * 
                                   ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_mid_visit)-1, 
-                                         (1 - pp_mid_test * att_6mo * (1-stockout) * test_accept * test_sens_c * p_results), 1)
+                                         (1 - pp_mid_test * att_6mo * (1-stockout) * test_accept * test_sens_combo_c * p_results), 1)
     
     
     
     maternal_df$chiv_pos_nart[x] <- ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_mid_visit)-1, 
                                            maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * pp_mid_test *
-                                             att_6mo * test_accept * (1-stockout) * p_results * test_sens_c * (1-p_ART), 0) +
+                                             att_6mo * test_accept * (1-stockout) * p_results * test_sens_combo_c * (1-p_ART), 0) +
                                     ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_mid_visit)-1, 
                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_mid_test * att_6mo * test_accept * 
-                                             (1-stockout) * p_results * test_sens_c * (1-p_ART), 0) +      
+                                             (1-stockout) * p_results * test_sens_combo_c * (1-p_ART), 0) +      
                                     maternal_df$chiv_pos_nart[x-1] * (1-mort_adult_females) +
                                     maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * (1-ART_drop_factor)
     
     maternal_df$chiv_pos_art[x] <- ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_mid_visit)-1, 
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * pp_mid_test *
-                                            att_6mo * test_sens_c * test_accept * (1-stockout) * p_results * p_ART, 0) +
+                                            att_6mo * test_sens_combo_c * test_accept * (1-stockout) * p_results * p_ART, 0) +
                                    ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_mid_visit)-1, 
-                                          maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_mid_test * att_6mo * test_sens_c *
+                                          maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_mid_test * att_6mo * test_sens_combo_c *
                                              test_accept * (1-stockout) * p_results * p_ART, 0) +
                                    maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1/duration_infection) +
                                    maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * ART_drop_factor
@@ -613,6 +642,10 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
     test_sens_c <- case_when(pp_test_type == "rdt" ~ rdt_sens_hiv_c,
                              pp_test_type == "dual" ~ dual.sens.hiv.c)
     
+    # Accounting for those that only get an HIV RDT instead of dual test because they are treponemal positive
+    test_sens_combo_e <- (test_sens_e + test_sens_e*syp_trep_pos - rdt_sens_hiv_e*syp_trep_pos)
+    test_sens_combo_c <- (test_sens_c + test_sens_c*syp_trep_pos - rdt_sens_hiv_c*syp_trep_pos)
+    
     # Calculating populations
     maternal_df$weeks[x] <- x
     
@@ -623,35 +656,35 @@ hiv_maternal_func <- function(first_ANC_test, late_ANC_test,                    
                                     maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-1/duration_infection) *
                                     ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_9months_visit)-1, 
                                            (1 - (pp_9months_test * att_9mo * (1-stockout) * test_accept * 
-                                                   test_sens_e * p_results * p_ART)), 1) +
+                                                   test_sens_combo_e * p_results * p_ART)), 1) +
                                     maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * (1-ART_drop_factor)
     
     maternal_df$ahiv_pos_art[x] <- maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * ART_drop_factor +
                                    ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_9months_visit)-1, 
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1-(1/duration_infection)) * pp_9months_test * 
-                                            att_9mo * test_accept * (1-stockout) * test_sens_e * p_results * p_ART, 0)
+                                            att_9mo * test_accept * (1-stockout) * test_sens_combo_e * p_results * p_ART, 0)
     
     maternal_df$chiv_pos_uk[x] <- maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * 
                                   ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_9months_visit)-1, 
-                                         (1 - pp_9months_test * att_9mo * (1-stockout) * test_accept * test_sens_c * p_results), 1) +
+                                         (1 - pp_9months_test * att_9mo * (1-stockout) * test_accept * test_sens_combo_c * p_results), 1) +
                                   maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * 
                                   ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_9months_visit)-1, 
-                                         (1 - pp_9months_test * att_9mo * (1-stockout) * test_accept * test_sens_c * p_results), 1)
+                                         (1 - pp_9months_test * att_9mo * (1-stockout) * test_accept * test_sens_combo_c * p_results), 1)
     
     maternal_df$chiv_pos_nart[x] <- ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_9months_visit)-1, 
                                            maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * pp_9months_test *
-                                             att_9mo * test_accept * (1-stockout) * p_results * test_sens_c * (1-p_ART), 0) +
+                                             att_9mo * test_accept * (1-stockout) * p_results * test_sens_combo_c * (1-p_ART), 0) +
                                     ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_9months_visit)-1, 
                                            maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_9months_test * att_9mo * test_accept * 
-                                             (1-stockout) * p_results * test_sens_c * (1-p_ART), 0) +      
+                                             (1-stockout) * p_results * test_sens_combo_c * (1-p_ART), 0) +      
                                     maternal_df$chiv_pos_nart[x-1] * (1-mort_adult_females) +
                                     maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * (1-ART_drop_factor)
     
     maternal_df$chiv_pos_art[x] <- ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_9months_visit)-1, 
                                           maternal_df$ahiv_pos_nart[x-1] * (1-mort_adult_females) * (1/duration_infection) * pp_9months_test *
-                                            att_9mo * test_sens_c * test_accept * (1-stockout) * p_results * p_ART, 0) +
+                                            att_9mo * test_sens_combo_c * test_accept * (1-stockout) * p_results * p_ART, 0) +
                                    ifelse(maternal_df$weeks[x-1] == (deliveryweek+pp_9months_visit)-1, 
-                                          maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_9months_test * att_9mo * test_sens_c *
+                                          maternal_df$chiv_pos_uk[x-1] * (1-mort_adult_females) * pp_9months_test * att_9mo * test_sens_combo_c *
                                             test_accept * (1-stockout) * p_results * p_ART, 0) +
                                    maternal_df$ahiv_pos_art[x-1] * (1-mort_adult_females) * (1/duration_infection) +
                                    maternal_df$chiv_pos_art[x-1] * (1-mort_adult_females) * ART_drop_factor
@@ -699,11 +732,21 @@ pw_func <- function(maternal_df) {
 
 
 
-
-
-
-
-
+# test_type_1 <- "dual"
+# test_type_2 <- "dual"
+# test_type_pp <- "dual"
+# first_ANC_test <- 1
+# late_ANC_test <- 0
+# pp_early_test <- 0
+# pp_mid_test <- 0
+# pp_late_test <- 0
+# pp_14weeks_test <- 0
+# pp_9months_test <- 0
+# pp_6months_test <-0
+# 
+# maternal_hiv_df <- hiv_maternal_func(1, 0, "dual", "dual", syph_infant_deaths = syph_infant_deaths)
+# person_weeks <- pw_func(maternal_hiv_df)
+# mat_costs <- mat_cost_func(person_weeks, maternal_hiv_df, 1, 1, "rdt", "dual")
 
 
 ##############################
@@ -719,18 +762,581 @@ mat_cost_func <- function(person_weeks, maternal_hiv_df,                        
                           pp_early_test=0, pp_14weeks_test=0, pp_mid_test=0, pp_9months_test=0,
                           test_type_pp="rdt") {
   
-  # test_cost <- case_when(test_type == "dual" ~ cost_dual,
-  #                        test_type == "rdt" ~ cost_3gen)
-  
   maternal_df <- maternal_hiv_df
-  
-  # Setting test specificity to spec3 - can change later if needed
-  #test_spec <- spec3
   
   # Testing probabilities
   second_ANC_test_prob <- late_ANC_test * att_lategest * test_accept * (1-stockout)
   delivery_test_prob <- (1-second_ANC_test_prob) * late_ANC_test * att_delivery * test_accept * (1-stockout)
+  
+  ## DMC adding 8.21.25 - splitting costs by test, treatment, PrEP
+  
+  ####### Testing costs (HIV RDT or HIV-syphilis dual test) ############
+    
+  # Split by HIV-syphilis dual testing and HIV RDT testing costs
+  # Starting with dual testing costs
+  mat_costs_td0 <- c(rep(0, 6))
+  
+  # Setting test sensitivity and cost based on test type and stage
+  if (test_type_1 == "rdt") {
+    test_sens_e <- rdt_sens_hiv_e
+    test_sens_c <- rdt_sens_hiv_c
+    test_cost <- cost_3gen
+    test_spec <- spec3
+  } else if (test_type_1 == "dual") {
+    test_sens_e <- dual.sens.hiv.e
+    test_sens_c <- dual.sens.hiv.c
+    test_cost <- cost_dual
+    test_spec <- hiv.spec.dual
+  } else {
+    print("First test type not defined")
+  }
+  
+  if (test_type_1 == "dual") {
+    mat_costs_td1 <- c(maternal_df[[weekofanc1, "hiv_neg"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
+                       (test_cost + (1-test_spec) * cost_false_pos_screening) * (1-syp_trep_pos),
+                     maternal_df[[weekofanc1, "ahiv_pos_nart"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
+                       (test_cost + test_sens_e * p_results * cost_true_pos_screening) * (1-syp_trep_pos),
+                     0,
+                     maternal_df[[weekofanc1, "chiv_pos_uk"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
+                       (test_cost + test_sens_c * p_results * cost_true_pos_screening) * (1-syp_trep_pos),
+                     0,
+                     0)
+  } else if (test_type_1 == "rdt") {
+    mat_costs_td1 <- c(rep(0, 6))
+  } else {
+    print("First test type not defined")
+  }
+  
+  
+  # Setting test sensitivity and cost based on test type and stage
+  if (test_type_2 == "rdt") {
+    test_sens_e <- rdt_sens_hiv_e
+    test_sens_c <- rdt_sens_hiv_c
+    test_cost <- cost_3gen
+    test_spec <- spec3
+  } else if (test_type_2 == "dual") {
+    test_sens_e <- dual.sens.hiv.e
+    test_sens_c <- dual.sens.hiv.c
+    test_cost <- cost_dual
+    test_spec <- hiv.spec.dual
+  } else {
+    print("Second test type not defined")
+  }
+  
+  if (test_type_2 == "dual") {
+    mat_costs_td2 <- c(maternal_df[[weekofanc2, "hiv_neg"]] * att_lategest * test_accept * (1-stockout) * late_ANC_test *
+                       (test_cost + (1-test_spec) * cost_false_pos_screening) * (1-syp_trep_pos),
+                     maternal_df[[weekofanc2, "ahiv_pos_nart"]] * att_lategest * test_accept * (1-stockout) * late_ANC_test *
+                       (test_cost + test_sens_e * p_results * cost_true_pos_screening) * (1-syp_trep_pos),
+                     0,
+                     maternal_df[[weekofanc2, "chiv_pos_uk"]] * att_lategest * test_accept * (1-stockout) * late_ANC_test *
+                       (test_cost + test_sens_c * p_results * cost_true_pos_screening) * (1-syp_trep_pos),
+                     0,
+                     0)
+    
+    mat_costs_td3 <- c(maternal_df[[deliveryweek, "hiv_neg"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                       (1-second_ANC_test_prob) *
+                       (test_cost + (1-test_spec) * cost_false_pos_screening) * (1-syp_trep_pos),
+                     maternal_df[[deliveryweek, "ahiv_pos_nart"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                       (1-second_ANC_test_prob) * 
+                       (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     maternal_df[[deliveryweek, "chiv_pos_uk"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                       (1-second_ANC_test_prob) *
+                       (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     0)
+    
+  } else if (test_type_2 == "rdt") {
+    mat_costs_td2 <- c(rep(0, 6))
+    mat_costs_td3 <- c(rep(0, 6))
+  } else {
+    print("Second test type not defined")
+  }
+  
+  mat_costs_td4 <- c(rep(0, 6))
+  
+  # Setting test sensitivity and cost based on test type and stage
+  if (test_type_pp == "rdt") {
+    test_sens_e <- rdt_sens_hiv_e
+    test_sens_c <- rdt_sens_hiv_c
+    test_cost <- cost_3gen
+    test_spec <- spec3
+  } else if (test_type_pp == "dual") {
+    test_sens_e <- dual.sens.hiv.e
+    test_sens_c <- dual.sens.hiv.c
+    test_cost <- cost_dual
+    test_spec <- hiv.spec.dual
+  } else {
+    print("Postpartum test type not defined")
+  }
+  
+  if (test_type_pp == "dual") {
+    
+    mat_costs_td5 <- c(maternal_df[[deliveryweek+early_pp_visit, "hiv_neg"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                       (1-(second_ANC_test_prob+delivery_test_prob)) *
+                       (test_cost + (1-test_spec) * cost_false_pos_screening) * (1-syp_trep_pos),
+                     maternal_df[[deliveryweek+early_pp_visit, "ahiv_pos_nart"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                       (1-(second_ANC_test_prob+delivery_test_prob)) * 
+                       (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     maternal_df[[deliveryweek+early_pp_visit, "chiv_pos_uk"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                       (1-(second_ANC_test_prob+delivery_test_prob)) *
+                       (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     0)
+    
+    
+    mat_costs_td6 <- c(maternal_df[[deliveryweek+pp_14weeks_visit, "hiv_neg"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                       (test_cost + (1-test_spec) * cost_false_pos_screening) * (1-syp_trep_pos),
+                     maternal_df[[deliveryweek+pp_14weeks_visit, "ahiv_pos_nart"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                       (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     maternal_df[[deliveryweek+pp_14weeks_visit, "chiv_pos_uk"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                       (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     0)
+    
+    # There is one cost here different than the Excel models
+    # the excel models have the total maternal costs for acute HIV- women as $0 but I think there's a linking error
+    mat_costs_td7 <- c(maternal_df[[deliveryweek+pp_mid_visit, "hiv_neg"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                       (test_cost + (1-test_spec) * cost_false_pos_screening) * (1-syp_trep_pos),
+                     maternal_df[[deliveryweek+pp_mid_visit, "ahiv_pos_nart"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                       (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     maternal_df[[deliveryweek+pp_mid_visit, "chiv_pos_uk"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                       (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     0)
+    
+    
+    mat_costs_td8 <- c(maternal_df[[deliveryweek+pp_9months_visit, "hiv_neg"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                       (test_cost + (1-test_spec) * cost_false_pos_screening) * (1-syp_trep_pos),
+                     maternal_df[[deliveryweek+pp_9months_visit, "ahiv_pos_nart"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                       (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     maternal_df[[deliveryweek+pp_9months_visit, "chiv_pos_uk"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                       (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (1-syp_trep_pos),
+                     0,
+                     0)
+  
+  } else if (test_type_pp == "rdt") {
+    
+    mat_costs_td5 <- c(rep(0, 6))
+    mat_costs_td6 <- c(rep(0, 6))
+    mat_costs_td7 <- c(rep(0, 6))
+    mat_costs_td8 <- c(rep(0, 6))
 
+  } else {
+    print("PP test type not defined")
+  }
+  
+  
+  
+  # HIV RDT testing costs
+    # HIV RDT testing costs are the full testing costs when using HIV RDT, 
+    # and are testing costs for those with trep pos when using dual HIV-syphilis
+  mat_costs_tr0 <- c(rep(0, 6))
+  
+  # Setting test sensitivity and cost based on test type and stage
+  if (test_type_1 == "rdt") {
+    test_sens_e <- rdt_sens_hiv_e
+    test_sens_c <- rdt_sens_hiv_c
+    test_cost <- cost_3gen
+    test_spec <- spec3
+  } else if (test_type_1 == "dual") {
+    test_sens_e <- dual.sens.hiv.e
+    test_sens_c <- dual.sens.hiv.c
+    test_cost <- cost_dual
+    test_spec <- hiv.spec.dual
+  } else {
+    print("First test type not defined")
+  }
+  
+  if (test_type_1 == "rdt") {
+    mat_costs_tr1 <- c(maternal_df[[weekofanc1, "hiv_neg"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening),
+                       maternal_df[[weekofanc1, "ahiv_pos_nart"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
+                         (test_cost + test_sens_e * p_results * cost_true_pos_screening),
+                       0,
+                       maternal_df[[weekofanc1, "chiv_pos_uk"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
+                         (test_cost + test_sens_c * p_results * cost_true_pos_screening),
+                       0,
+                       0)
+  } else if (test_type_1 == "dual") {
+    
+    mat_costs_tr1 <- c(maternal_df[[weekofanc1, "hiv_neg"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening) * (syp_trep_pos),
+                       maternal_df[[weekofanc1, "ahiv_pos_nart"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
+                         (test_cost + test_sens_e * p_results * cost_true_pos_screening) * (syp_trep_pos),
+                       0,
+                       maternal_df[[weekofanc1, "chiv_pos_uk"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
+                         (test_cost + test_sens_c * p_results * cost_true_pos_screening) * (syp_trep_pos),
+                       0,
+                       0)
+    
+  } else {
+    print("First test type not defined")
+  }
+  
+  
+  # Setting test sensitivity and cost based on test type and stage
+  if (test_type_2 == "rdt") {
+    test_sens_e <- rdt_sens_hiv_e
+    test_sens_c <- rdt_sens_hiv_c
+    test_cost <- cost_3gen
+    test_spec <- spec3
+  } else if (test_type_2 == "dual") {
+    test_sens_e <- dual.sens.hiv.e
+    test_sens_c <- dual.sens.hiv.c
+    test_cost <- cost_dual
+    test_spec <- hiv.spec.dual
+  } else {
+    print("Second test type not defined")
+  }
+  
+  if (test_type_2 == "rdt") {
+    
+    mat_costs_tr2 <- c(maternal_df[[weekofanc2, "hiv_neg"]] * att_lategest * test_accept * (1-stockout) * late_ANC_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening),
+                       maternal_df[[weekofanc2, "ahiv_pos_nart"]] * att_lategest * test_accept * (1-stockout) * late_ANC_test *
+                         (test_cost + test_sens_e * p_results * cost_true_pos_screening),
+                       0,
+                       maternal_df[[weekofanc2, "chiv_pos_uk"]] * att_lategest * test_accept * (1-stockout) * late_ANC_test *
+                         (test_cost + test_sens_c * p_results * cost_true_pos_screening),
+                       0,
+                       0)
+    
+    mat_costs_tr3 <- c(maternal_df[[deliveryweek, "hiv_neg"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                         (1-second_ANC_test_prob) *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening) * (syp_trep_pos),
+                       maternal_df[[deliveryweek, "ahiv_pos_nart"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                         (1-second_ANC_test_prob) * 
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       maternal_df[[deliveryweek, "chiv_pos_uk"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                         (1-second_ANC_test_prob) *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       0)
+    
+  } else if (test_type_2 == "dual") {
+
+    mat_costs_tr2 <- c(maternal_df[[weekofanc2, "hiv_neg"]] * att_lategest * test_accept * (1-stockout) * late_ANC_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening) * (syp_trep_pos),
+                       maternal_df[[weekofanc2, "ahiv_pos_nart"]] * att_lategest * test_accept * (1-stockout) * late_ANC_test *
+                         (test_cost + test_sens_e * p_results * cost_true_pos_screening) * (syp_trep_pos),
+                       0,
+                       maternal_df[[weekofanc2, "chiv_pos_uk"]] * att_lategest * test_accept * (1-stockout) * late_ANC_test *
+                         (test_cost + test_sens_c * p_results * cost_true_pos_screening) * (syp_trep_pos),
+                       0,
+                       0)
+    
+    mat_costs_tr3 <- c(maternal_df[[deliveryweek, "hiv_neg"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                         (1-second_ANC_test_prob) *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening) * (syp_trep_pos),
+                       maternal_df[[deliveryweek, "ahiv_pos_nart"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                         (1-second_ANC_test_prob) * 
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       maternal_df[[deliveryweek, "chiv_pos_uk"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                         (1-second_ANC_test_prob) *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       0)
+  } else {
+    print("Second test type not defined")
+  }
+  
+  mat_costs_tr4 <- c(rep(0, 6))
+  
+  # Setting test sensitivity and cost based on test type and stage
+  if (test_type_pp == "rdt") {
+    test_sens_e <- rdt_sens_hiv_e
+    test_sens_c <- rdt_sens_hiv_c
+    test_cost <- cost_3gen
+    test_spec <- spec3
+  } else if (test_type_pp == "dual") {
+    test_sens_e <- dual.sens.hiv.e
+    test_sens_c <- dual.sens.hiv.c
+    test_cost <- cost_dual
+    test_spec <- hiv.spec.dual
+  } else {
+    print("Postpartum test type not defined")
+  }
+  
+  if (test_type_pp == "rdt") {
+    
+    mat_costs_tr5 <- c(maternal_df[[deliveryweek+early_pp_visit, "hiv_neg"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                         (1-(second_ANC_test_prob+delivery_test_prob)) *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening),
+                       maternal_df[[deliveryweek+early_pp_visit, "ahiv_pos_nart"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                         (1-(second_ANC_test_prob+delivery_test_prob)) * 
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)),
+                       0,
+                       maternal_df[[deliveryweek+early_pp_visit, "chiv_pos_uk"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                         (1-(second_ANC_test_prob+delivery_test_prob)) *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)),
+                       0,
+                       0)
+    
+    
+    mat_costs_tr6 <- c(maternal_df[[deliveryweek+pp_14weeks_visit, "hiv_neg"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening),
+                       maternal_df[[deliveryweek+pp_14weeks_visit, "ahiv_pos_nart"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)),
+                       0,
+                       maternal_df[[deliveryweek+pp_14weeks_visit, "chiv_pos_uk"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)),
+                       0,
+                       0)
+    
+    mat_costs_tr7 <- c(maternal_df[[deliveryweek+pp_mid_visit, "hiv_neg"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening),
+                       maternal_df[[deliveryweek+pp_mid_visit, "ahiv_pos_nart"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)),
+                       0,
+                       maternal_df[[deliveryweek+pp_mid_visit, "chiv_pos_uk"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)),
+                       0,
+                       0)
+    
+    
+    mat_costs_tr8 <- c(maternal_df[[deliveryweek+pp_9months_visit, "hiv_neg"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening),
+                       maternal_df[[deliveryweek+pp_9months_visit, "ahiv_pos_nart"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)),
+                       0,
+                       maternal_df[[deliveryweek+pp_9months_visit, "chiv_pos_uk"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)),
+                       0,
+                       0)
+    
+  } else if (test_type_pp == "dual") {
+    
+    mat_costs_tr5 <- c(maternal_df[[deliveryweek+early_pp_visit, "hiv_neg"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                         (1-(second_ANC_test_prob+delivery_test_prob)) *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening) * (syp_trep_pos),
+                       maternal_df[[deliveryweek+early_pp_visit, "ahiv_pos_nart"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                         (1-(second_ANC_test_prob+delivery_test_prob)) * 
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       maternal_df[[deliveryweek+early_pp_visit, "chiv_pos_uk"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                         (1-(second_ANC_test_prob+delivery_test_prob)) *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       0)
+    
+    
+    mat_costs_tr6 <- c(maternal_df[[deliveryweek+pp_14weeks_visit, "hiv_neg"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening) * (syp_trep_pos),
+                       maternal_df[[deliveryweek+pp_14weeks_visit, "ahiv_pos_nart"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       maternal_df[[deliveryweek+pp_14weeks_visit, "chiv_pos_uk"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       0)
+    
+    mat_costs_tr7 <- c(maternal_df[[deliveryweek+pp_mid_visit, "hiv_neg"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening) * (syp_trep_pos),
+                       maternal_df[[deliveryweek+pp_mid_visit, "ahiv_pos_nart"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       maternal_df[[deliveryweek+pp_mid_visit, "chiv_pos_uk"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       0)
+    
+    
+    mat_costs_tr8 <- c(maternal_df[[deliveryweek+pp_9months_visit, "hiv_neg"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                         (test_cost + (1-test_spec) * cost_false_pos_screening) * (syp_trep_pos),
+                       maternal_df[[deliveryweek+pp_9months_visit, "ahiv_pos_nart"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                         (test_cost + test_sens_e * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       maternal_df[[deliveryweek+pp_9months_visit, "chiv_pos_uk"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                         (test_cost + test_sens_c * p_results * (cost_true_pos_screening)) * (syp_trep_pos),
+                       0,
+                       0)
+    
+  } else {
+    print("PP test type not defined")
+  }
+  
+  
+  
+  # Treatment costs
+  # Getting maternal costs for model by stage
+  mat_costs_a0 <- c(rep(0, 6))
+  
+  mat_costs_a1 <- c(0,
+                   0,
+                   person_weeks[[2,"ahiv_pos_art"]] * cost_maternal_ART,
+                   0,
+                   0,
+                   person_weeks[[2,"chiv_pos_art"]] * cost_maternal_ART)
+  
+  mat_costs_a2 <- c(0,
+                   0,
+                   person_weeks[[3,"ahiv_pos_art"]] * cost_maternal_ART,
+                   0,
+                   0,
+                   person_weeks[[3,"chiv_pos_art"]] * cost_maternal_ART)
+  
+  # Setting test sensitivity and cost based on test type and stage
+  if (test_type_2 == "rdt") {
+    test_sens_e <- rdt_sens_hiv_e
+    test_sens_c <- rdt_sens_hiv_c
+    test_cost <- cost_3gen
+    test_spec <- spec3
+  } else if (test_type_2 == "dual") {
+    test_sens_e <- dual.sens.hiv.e
+    test_sens_c <- dual.sens.hiv.c
+    test_cost <- cost_dual
+    test_spec <- hiv.spec.dual
+  } else {
+    print("Second test type not defined")
+  }
+
+  mat_costs_a3 <- c(0,
+                   maternal_df[[deliveryweek, "ahiv_pos_nart"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                     (1-second_ANC_test_prob) * 
+                     (test_sens_e * p_results * (cost_infant_prophylaxis*p_arv)),
+                   person_weeks[[4,"ahiv_pos_art"]] * (cost_infant_prophylaxis * p_arv + cost_maternal_ART),
+                   maternal_df[[deliveryweek, "chiv_pos_uk"]] * att_delivery * test_accept * (1-stockout) * late_ANC_test *
+                     (1-second_ANC_test_prob) *
+                     (test_sens_c * p_results * (cost_infant_prophylaxis*p_arv)),
+                   person_weeks[[4, "chiv_pos_nart"]] * p_arv * cost_infant_prophylaxis,
+                   person_weeks[[4,"chiv_pos_art"]] * (cost_maternal_ART + p_arv * cost_infant_prophylaxis))
+  
+  mat_costs_a4 <- c(0,
+                   0,
+                   person_weeks[[5,"ahiv_pos_art"]] * cost_maternal_ART,
+                   0,
+                   0,
+                   person_weeks[[5,"chiv_pos_art"]] * cost_maternal_ART)
+  
+  # Setting test sensitivity and cost based on test type and stage
+  if (test_type_pp == "rdt") {
+    test_sens_e <- rdt_sens_hiv_e
+    test_sens_c <- rdt_sens_hiv_c
+    test_cost <- cost_3gen
+    test_spec <- spec3
+  } else if (test_type_pp == "dual") {
+    test_sens_e <- dual.sens.hiv.e
+    test_sens_c <- dual.sens.hiv.c
+    test_cost <- cost_dual
+    test_spec <- hiv.spec.dual
+  } else {
+    print("Postpartum test type not defined")
+  }
+  
+  mat_costs_a5 <- c(0,
+                   0,
+                   person_weeks[[6,"ahiv_pos_art"]] * cost_maternal_ART,
+                   maternal_df[[deliveryweek+early_pp_visit, "chiv_pos_uk"]] * att_6wk * test_accept * (1-stockout) * pp_early_test *
+                     (1-(second_ANC_test_prob+delivery_test_prob)) *
+                     (test_sens_c * p_results * (cost_infant_prophylaxis*p_arv)),
+                   0,
+                   person_weeks[[6,"chiv_pos_art"]] * cost_maternal_ART)
+  
+  
+  mat_costs_a6 <- c(0,
+                   maternal_df[[deliveryweek+pp_14weeks_visit, "ahiv_pos_nart"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                     (test_sens_e * p_results * (cost_infant_prophylaxis*p_arv)),
+                   person_weeks[[7,"ahiv_pos_art"]] * cost_maternal_ART,
+                   maternal_df[[deliveryweek+pp_14weeks_visit, "chiv_pos_uk"]] * att_14wk * test_accept * (1-stockout) * pp_14weeks_test *
+                     (test_sens_c * p_results * (cost_infant_prophylaxis*p_arv)),
+                   0,
+                   person_weeks[[7,"chiv_pos_art"]] * cost_maternal_ART)
+  
+  mat_costs_a7 <- c(0,
+                   maternal_df[[deliveryweek+pp_mid_visit, "ahiv_pos_nart"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                     (test_sens_e * p_results * (cost_infant_prophylaxis*p_arv)),
+                   person_weeks[[8,"ahiv_pos_art"]] * cost_maternal_ART,
+                   maternal_df[[deliveryweek+pp_mid_visit, "chiv_pos_uk"]] * att_6mo * test_accept * (1-stockout) * pp_mid_test *
+                     (test_sens_c * p_results * (cost_infant_prophylaxis*p_arv)),
+                   0,
+                   person_weeks[[8,"chiv_pos_art"]] * cost_maternal_ART)
+  
+  
+  mat_costs_a8 <- c(0,
+                   maternal_df[[deliveryweek+pp_9months_visit, "ahiv_pos_nart"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                     (test_sens_e * p_results * (cost_infant_prophylaxis*p_arv)),
+                   person_weeks[[9,"ahiv_pos_art"]] * cost_maternal_ART,
+                   maternal_df[[deliveryweek+pp_9months_visit, "chiv_pos_uk"]] * att_9mo * test_accept * (1-stockout) * pp_9months_test *
+                     (test_sens_c * p_results * (cost_infant_prophylaxis*p_arv)),
+                   0,
+                   person_weeks[[9,"chiv_pos_art"]] * cost_maternal_ART)
+  
+  
+  
+  
+  # PrEP costs
+  # Getting maternal costs for model by stage
+  mat_costs_p0 <- c(cost_maternal_PrEP * PrEP * person_weeks[[1,2]], 
+                   cost_maternal_PrEP * PrEP * person_weeks[[1,3]], 
+                   rep(0, 4))
+  
+  mat_costs_p1 <- c(cost_maternal_PrEP * PrEP * person_weeks[[2,2]],
+                   cost_maternal_PrEP * PrEP * person_weeks[[2,3]],
+                   0,
+                   0,
+                   0,
+                   0)
+  
+  mat_costs_p2 <- c(cost_maternal_PrEP * PrEP * person_weeks[[3,2]],
+                   cost_maternal_PrEP * PrEP * person_weeks[[3,3]],
+                   0,
+                   0,
+                   0,
+                   0)
+  
+  mat_costs_p3 <- c(cost_maternal_PrEP * PrEP * person_weeks[[4,2]],
+                   cost_maternal_PrEP * PrEP * person_weeks[[4,3]],
+                   0,
+                   0,
+                   0,
+                   0)
+  
+  mat_costs_p4 <- c(person_weeks[[5, "hiv_neg"]] * cost_maternal_PrEP * PrEP,
+                   person_weeks[[5, "ahiv_pos_nart"]] * cost_maternal_PrEP * PrEP,
+                   0,
+                   0,
+                   0,
+                   0)
+  
+  mat_costs_p5 <- c(cost_maternal_PrEP * PrEP * person_weeks[[6,2]],
+                   cost_maternal_PrEP * PrEP * person_weeks[[6,3]],
+                   0,
+                   0,
+                   0,
+                   0)
+  
+  mat_costs_p6 <- c(cost_maternal_PrEP * PrEP * person_weeks[[7,2]],
+                   cost_maternal_PrEP * PrEP * person_weeks[[7,3]],
+                   0,
+                   0,
+                   0,
+                   0)
+  
+  mat_costs_p7 <- c(cost_maternal_PrEP * PrEP * person_weeks[[8,2]],
+                   cost_maternal_PrEP * PrEP * person_weeks[[8,3]],
+                   0,
+                   0,
+                   0,
+                   0)
+
+  mat_costs_p8 <- c(cost_maternal_PrEP * PrEP * person_weeks[[9,2]],
+                   cost_maternal_PrEP * PrEP * person_weeks[[9,3]],
+                   0,
+                   0,
+                   0,
+                   0)
+  
+
+  
+  # Full costs - all in one (not using in this model)
   # Getting maternal costs for model by stage
   mat_costs_0 <- c(cost_maternal_PrEP * PrEP * person_weeks[[1,2]], 
                    cost_maternal_PrEP * PrEP * person_weeks[[1,3]], 
@@ -750,6 +1356,7 @@ mat_cost_func <- function(person_weeks, maternal_hiv_df,                        
   } else {
     print("First test type not defined")
   }
+  
 
   mat_costs_1 <- c(maternal_df[[weekofanc1, "hiv_neg"]] * att_firstANC * test_accept * (1-stockout) * first_ANC_test *
                      (test_cost + (1-test_spec) * cost_false_pos_screening) +
@@ -889,16 +1496,59 @@ mat_cost_func <- function(person_weeks, maternal_hiv_df,                        
     bind_cols(data.frame("stage" = person_weeks[,1])) %>%
     relocate("stage")
   
-  colnames(maternal_costs) <- colnames(person_weeks)
   
-  return(maternal_costs) 
+  # Putting all testing costs into a df
+  maternal_costs_td <- data.frame(mat_costs_td0, mat_costs_td1, mat_costs_td2, mat_costs_td3, mat_costs_td4, 
+               mat_costs_td5, mat_costs_td6, mat_costs_td7, mat_costs_td8) %>%
+    t() %>%
+    bind_cols(data.frame("stage" = person_weeks[,1])) %>%
+    relocate("stage")
+  
+  maternal_costs_tr <- data.frame(mat_costs_tr0, mat_costs_tr1, mat_costs_tr2, mat_costs_tr3, mat_costs_tr4, 
+                                  mat_costs_tr5, mat_costs_tr6, mat_costs_tr7, mat_costs_tr8) %>%
+    t() %>%
+    bind_cols(data.frame("stage" = person_weeks[,1])) %>%
+    relocate("stage")
+  
+  # total testing costs
+  maternal_costs_t <- (maternal_costs_td[ , 2:ncol(maternal_costs_td)] + maternal_costs_tr[ , 2:ncol(maternal_costs_tr)]) %>%
+    bind_cols(maternal_costs_td[,1]) %>%
+    relocate(last_col())
+  
+  
+  # Putting treatment costs into df
+  maternal_costs_a <- data.frame(mat_costs_a0, mat_costs_a1, mat_costs_a2, mat_costs_a3, mat_costs_a4, 
+                                  mat_costs_a5, mat_costs_a6, mat_costs_a7, mat_costs_a8) %>%
+    t() %>%
+    bind_cols(data.frame("stage" = person_weeks[,1])) %>%
+    relocate("stage")
+  
+  # Putting PrEP costs into df 
+  maternal_costs_p <- data.frame(mat_costs_p0, mat_costs_p1, mat_costs_p2, mat_costs_p3, mat_costs_p4, 
+                                  mat_costs_p5, mat_costs_p6, mat_costs_p7, mat_costs_p8) %>%
+    t() %>%
+    bind_cols(data.frame("stage" = person_weeks[,1])) %>%
+    relocate("stage")
+
+  colnames(maternal_costs) <- colnames(person_weeks)
+  colnames(maternal_costs_td) <- colnames(person_weeks)
+  colnames(maternal_costs_tr) <- colnames(person_weeks)
+  colnames(maternal_costs_t) <- colnames(person_weeks)
+  colnames(maternal_costs_a) <- colnames(person_weeks)
+  colnames(maternal_costs_p) <- colnames(person_weeks)
+
+  #return(maternal_costs) 
+  return(list("maternal_costs" = maternal_costs, "dual_testing_costs" = maternal_costs_td,
+              "rdt_testing_costs" = maternal_costs_tr, "total_testing_costs" = maternal_costs_t, 
+              "treatment_costs" = maternal_costs_a, "prep_costs" = maternal_costs_p))
 
 }
 
 #total_maternal_costs <- sum(maternal_costs[ ,2:ncol(maternal_costs)])
 
 ## Getting total maternal costs
-tot_mat_costs_func <- function(maternal_costs_df) {
+tot_mat_costs_func <- function(maternal_costs_list) {
+  maternal_costs_df <- maternal_costs_list$maternal_costs
   out <- sum(maternal_costs_df[ ,2:ncol(maternal_costs_df)])
 }
 

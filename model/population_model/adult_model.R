@@ -48,7 +48,7 @@ rm(list = ls())
 
 
 # This is the adult model - 
-  # where we take an adult population and estimate the impacts of one year of testing on 20 years of outcomes
+  # where we take an adult population and estimate the impacts of 10 years of testing on 20 years of outcomes
   # we will use a dynamic Markov model where we change the force of infection based on the number of infectious individuals
 
 

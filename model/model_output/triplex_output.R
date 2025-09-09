@@ -58,11 +58,12 @@ infant_hiv_syp_model_tri <- function(maternal_hiv_df,
   
 
   # Setting up empty matrix
-  infant_matrix <- matrix(nrow = 21, ncol = 13,
+  infant_matrix <- matrix(nrow = 21, ncol = 15,
                           dimnames = list(NULL,
                                           c("age", "hiv_infected_infants", "syphilis_infected_infants",
                                             "coinfected_infants", "lbw_infants", "healthy_infants",
-                                            "syph_dead", "hiv_dead", "bg_dead", "discounted_ylls",
+                                            "syph_dead", "hiv_dead", "bg_dead", "hiv_dw_weighted",
+                                            "hivsyp_coinf_dw_weighted", "discounted_ylls",
                                             "discounted_ylds", "discounted_dalys",
                                             "discounted_costs")))
 
@@ -89,7 +90,7 @@ infant_hiv_syp_model_tri <- function(maternal_hiv_df,
     sum(total_hiv_infected_infants, syphilis_infected_infants, coinfected_infants, lbw_infants, syph_dead, hiv_dead, bg_dead)
   # Setting up first week parameters
   infant_df[1, ] <- c(NA, hiv_infected_infants, syphilis_infected_infants, coinfected_infants, lbw_infants, healthy_infants,
-                      syph_dead, hiv_dead, bg_dead, rep(NA, 4))
+                      syph_dead, hiv_dead, bg_dead, rep(NA, 6))
   # Setting up age to 19
   infant_df[ ,1] <- c(NA, seq(0, 19, 1))
   # Adding in initial treatment costs at age 0
@@ -128,7 +129,18 @@ infant_hiv_syp_model_tri <- function(maternal_hiv_df,
       infant_df$healthy_infants[x-1] * prob_death_nhiv[x-1]
 
     infant_df$discounted_ylls[x] <- (infant_df$syph_dead[x] + infant_df$hiv_dead[x] + infant_df$bg_dead[x])/(1+disc_rate)^(infant_df$age[x]+1)
-
+  
+    infant_df$hiv_dw_weighted[x] <- (inf_ART_coverage*avg_ART_adherence*dw_HIVtx) +
+      (1-inf_ART_coverage*avg_ART_adherence) *
+      (dw_HIVnotx*propLE_HIV_notx + dw_AIDSnotx*(1-propLE_HIV_notx))
+    
+    infant_df$hivsyp_coinf_dw_weighted[x] <- 
+      (inf_ART_coverage*avg_ART_adherence*ifelse(infant_df$age[x]<3, `dw_syp+HIVtx`, dw_HIVtx) +
+         (1-inf_ART_coverage*avg_ART_adherence)*
+         (ifelse(infant_df$age[x]<3, `dw_syp+HIVnotx` , dw_HIVnotx)*propLE_HIV_notx) +
+         (1-inf_ART_coverage*avg_ART_adherence)* #DMC adding this line
+         ifelse(infant_df$age[x]<3, `dw_syp+AIDSnotx`, dw_AIDSnotx) * (1-propLE_HIV_notx))
+      
     infant_df$discounted_ylds[x] <-
       # hiv infected infants
       (infant_df$hiv_infected_infants[x] * (inf_ART_coverage*avg_ART_adherence*dw_HIVtx) +
